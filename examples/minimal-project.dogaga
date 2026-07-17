@@ -2,7 +2,7 @@
   "version": "0.1.0",
   "id": "project_minimal_001",
   "name": "最小サンプル",
-  "description": "動画1クリップ、音声1クリップ、同期済み歌詞1行を持つサンプル",
+  "description": "動画1クリップ、再リンク待ちの音声1クリップ、同期済み歌詞1行を持つサンプル",
   "createdAt": "2026-07-17T00:00:00Z",
   "updatedAt": "2026-07-17T00:00:00Z",
   "createdWith": {
