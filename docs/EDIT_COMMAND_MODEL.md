@@ -1,12 +1,12 @@
 # DOGAGA 編集コマンドとUndo / Redoモデル v0.1
 
-更新日: 2026-07-17
-対象Issue: #6
-依存する正本: `docs/PROJECT_FORMAT.md`、`schemas/dogaga-project.schema.json`、`docs/LYRIC_SYNC_UX.md`
+更新日: 2026-07-18
+対象Issue: #6、#18
+依存する正本: `docs/PROJECT_FORMAT.md`、`schemas/dogaga-project.schema.json`、`docs/LYRIC_SYNC_UX.md`、`docs/RIGHTS_AND_DATA_POLICY.md`
 
 ## 1. 目的
 
-DOGAGAの基本編集と歌詞同期を、壊れにくいUndo / Redoへ接続するためのランタイム設計を定義する。
+DOGAGAの素材管理、基本編集、歌詞同期を、壊れにくいUndo / Redoと端末内bindingへ接続するためのランタイム設計を定義する。
 
 本書が扱うのは、Project v0.1を変更する編集コマンド、履歴スタック、連続操作の圧縮、自動保存との境界である。`.dogaga` の永続形式そのものは `docs/PROJECT_FORMAT.md` を正本とする。
 
@@ -19,6 +19,8 @@ v0.1では、**型付きコマンドと、適用時に生成する最小の逆�
 - コマンド適用は純粋関数に近い同期処理とし、成功時だけProjectと履歴を同時に更新する
 - Undoに必要な変更前データは、Project全体ではなく影響範囲だけを逆コマンドへ保持する
 - 複数対象の変更は一つの原子的コマンド、または原子的なBatchとして扱う
+- Assetの登録・解除も型付き編集コマンドとし、`project.assets`を直接変更しない
+- 端末上のリンク観測は型付きmaintenance commandで反映し、ユーザー編集履歴と分離する
 - ドラッグ中のプレビューは履歴へ積まず、確定時に一件だけ積む
 - 歌詞タップ同期は、Space一回を一履歴とする
 - Undo / Redo履歴は`.dogaga` v0.1へ保存しない。再読込後は空で開始する
@@ -68,6 +70,7 @@ v0.1では、**型付きコマンドと、適用時に生成する最小の逆�
 interface EditorState {
   project: ProjectV0_1;
   history: HistoryState;
+  mediaRuntime: MediaRuntimeState;
   runtimeRevision: number;
   savedRevision: number;
   activeInteraction: InteractionSession | null;
@@ -95,9 +98,32 @@ interface InteractionSession {
   kind: "drag" | "resize" | "numeric-nudge";
   preview: EditCommand;
 }
+
+interface LocalMediaBinding {
+  file: File;
+  handle?: FileSystemFileHandle;
+  objectUrl?: string;
+}
+
+interface AssetRuntimeEntry {
+  revision: number;
+  binding: LocalMediaBinding | null;
+  activeRequestToken: string | null;
+}
+
+interface MediaRuntimeState {
+  assets: ReadonlyMap<Id, AssetRuntimeEntry>;
+}
+
+interface PendingMediaRequest {
+  requestToken: string;
+  projectId: Id;
+  assetId: Id;
+  expectedAssetRevision: number;
+}
 ```
 
-`runtimeRevision`、履歴、操作中プレビューはランタイム専用であり、Projectへ混ぜない。`savedRevision`はdirty表示の高速判定に使えるが、保存完了と同一内容へのUndoが競合する場合に備え、保存対象の内容ハッシュまたは同値比較も併用する。
+`runtimeRevision`、履歴、`mediaRuntime`、操作中プレビューはランタイム専用であり、Projectへ混ぜない。`LocalMediaBinding`はFile、FileSystemFileHandle、blob URL等の端末内参照を抽象化し、`.dogaga`へ直列化しない。`savedRevision`はdirty表示の高速判定に使えるが、保存完了と同一内容へのUndoが競合する場合に備え、保存対象の内容ハッシュまたは同値比較も併用する。
 
 Projectの`updatedAt`は保存処理がスナップショットへ設定する。各コマンド実行時に時刻を生成するとUndoで内容が完全に戻らないため、コマンドexecutorの責務にはしない。
 
@@ -115,6 +141,22 @@ interface CommandBase {
   labelKey: EditHistoryMessageKey;
   interactionId?: Id;
   lyricSyncSessionId?: Id;
+}
+
+interface AssetPlacement {
+  afterAssetId: Id | null;
+  beforeAssetId: Id | null;
+}
+
+interface RegisterAssetCommand extends CommandBase {
+  type: "RegisterAsset";
+  asset: Asset;
+  placement: AssetPlacement;
+}
+
+interface RemoveAssetCommand extends CommandBase {
+  type: "RemoveAsset";
+  assetId: Id;
 }
 
 interface AddClipCommand extends CommandBase {
@@ -225,6 +267,8 @@ interface MergeLyricLinesCommand extends CommandBase {
 }
 
 type AtomicEditCommand =
+  | RegisterAssetCommand
+  | RemoveAssetCommand
   | AddClipCommand
   | MoveClipCommand
   | TrimClipCommand
@@ -246,6 +290,30 @@ interface BatchCommand extends CommandBase {
 }
 
 type EditCommand = AtomicEditCommand | BatchCommand;
+
+interface MaintenanceCommandBase {
+  commandId: Id;
+}
+
+interface SetAssetLinkStateCommand extends MaintenanceCommandBase {
+  type: "SetAssetLinkState";
+  assetId: Id;
+  linkState: Asset["linkState"];
+}
+
+interface UpdateAssetMetadataCommand extends MaintenanceCommandBase {
+  type: "UpdateAssetMetadata";
+  assetId: Id;
+  kind: Asset["kind"];
+  mimeType: string | null;
+  relinkHints: RelinkHints;
+  metadata: MediaMetadata;
+  linkState: "available";
+}
+
+type MaintenanceCommand =
+  | SetAssetLinkStateCommand
+  | UpdateAssetMetadataCommand;
 
 type AnyClip = VideoClip | AudioClip | TextClip;
 
@@ -296,6 +364,17 @@ type ApplyCommand = (
   project: Readonly<ProjectV0_1>,
   command: ExecutableCommand,
 ) => Result<ApplyResult, CommandError>;
+
+interface MaintenanceApplyResult {
+  project: ProjectV0_1;
+  affectedIds: readonly Id[];
+  historyEffect: "preserve" | "clearAll";
+}
+
+type ApplyMaintenanceCommand = (
+  project: Readonly<ProjectV0_1>,
+  command: MaintenanceCommand,
+) => Result<MaintenanceApplyResult, CommandError>;
 ```
 
 `replacementLines`と`clipAssignments`は、行分割を空白位置から自動推測しないために明示する。日本語歌詞は単語間スペースを前提にせず、UIで確定した本文と参照関係をコマンドへ渡す。
@@ -328,10 +407,24 @@ type ApplyCommand = (
 
 Undo / Redoの実行中に通常の履歴項目を追加してはならない。executorへ`recordHistory`フラグを渡すより、履歴管理層とProject変換層を分ける。
 
+### Maintenance command
+
+`SetAssetLinkState`と`UpdateAssetMetadata`は、端末上のファイル確認結果をProjectへ保存する型付きmaintenance commandであり、`EditCommand`やBatchへ混ぜない。
+
+- 成功時はProjectを一度だけ置き換え、`runtimeRevision`を増やして自動保存を予約する
+- `past`へ履歴項目を追加しない
+- `SetAssetLinkState`は編集内容へ影響しないため、`past`と`future`を保持する
+- `UpdateAssetMetadata`は素材尺等が既存のinverseとRedoの可否へ影響し得るため、値が変わる場合は`past`と`future`を両方破棄するhistory barrierとする
+- 失敗時はProject、`past`、`future`、端末内bindingを変更しない
+
+明示的な再リンクも、File handle自体をProjectのinverseへ保存できないためCtrl / Cmd+Zの対象にはしない。metadataが完全に同値ならno-opとして履歴を保持する。値が変わる場合、UIは再リンク完了を通常の編集Undoと混同させず、元に戻す／やり直す履歴が消えることを確定前に案内する。
+
 ## 9. コマンド別の意味
 
 | コマンド | 原子的に変更するもの | 逆操作に保持するもの | 主な拒否条件 |
 |---|---|---|---|
+| `RegisterAsset` | 検証済みAssetを安定IDと指定位置で登録 | 追加Asset ID | ID重複、配置anchor不整合、Schema・意味検証失敗 |
+| `RemoveAsset` | 未参照Asset recordをProjectから解除 | Asset全体と前後のAsset ID | Asset不在、参照Clipあり |
 | `AddClip` | 指定Trackへ正規化済みClipを追加し、Trackの`order`を正規化 | 追加Clip IDと変更前の並び順 | Track種別不一致、ID・参照先不在／重複、範囲外 |
 | `MoveClip` | Track、`startUs`、挿入位置と影響Trackの`order` | 元・先Trackの変更前slice | 範囲外、lock中、Transition制約破壊 |
 | `TrimClip` | `startUs`、`durationUs`、`sourceStartUs` | 変更前の3値 | 素材範囲外、0以下の尺、fade・Transition破壊 |
@@ -346,6 +439,8 @@ Undo / Redoの実行中に通常の履歴項目を追加してはならない。
 | `ImportLyrics` | LyricDocumentと未同期TextClip群 | 追加したdocument / clip ID | ID重複、参照不整合、上限超過 |
 | `SplitLyricLine` | 行配列と全参照Clipを同時更新 | 影響した行・Clip参照のslice | 割当不足、本文不一致、参照の孤立 |
 | `MergeLyricLines` | 複数行と全参照Clipを一行へ更新 | 影響した行・Clip参照のslice | 順序不正、割当不足、参照の孤立 |
+
+`AssetPlacement`は配列添字ではなく、挿入位置の直前・直後にある安定Asset IDを保持する。先頭は`afterAssetId: null`、末尾は`beforeAssetId: null`、空配列だけは両方`null`とする。両方が非`null`なら適用時に隣接していなければ拒否する。`RemoveAsset`のinverseは削除前の両anchorを持つ`RegisterAsset`とし、Undo / RedoでAsset配列順も元へ戻す。
 
 ### Track内の並び順
 
@@ -414,6 +509,8 @@ Batchのinverseは、各subcommandのinverseを**逆順**に並べた`InternalBa
 
 Batchを使う例:
 
+- 素材登録と、そのAssetを参照するClip追加
+- 参照Clipの明示削除と、その後のAsset解除
 - Clip移動と、明示的に選んだTransition削除
 - 行分割と、複数TextClipの`lyricLineRef`更新
 - 歌詞取り込みと、未同期TextClipの一括作成
@@ -477,6 +574,8 @@ Backspace -> history BをUndoし、timing群 + lastActiveLineId=line 2を復元
 |---|---|---|---|
 | 通常コマンド成功 | 更新 | `past`へ追加、`future`破棄 | debounceして予約 |
 | Undo / Redo成功 | 更新 | entryをスタック間で移動 | debounceして予約 |
+| `SetAssetLinkState`成功 | 観測状態を更新 | 両方保持 | debounceして予約 |
+| `UpdateAssetMetadata`変更あり | metadataを更新 | `past` / `future`を破棄 | debounceして予約 |
 | ドラッグpreview | 未確定 | 変更なし | 予約しない |
 | 手動保存 | 保存用snapshotの`updatedAt`を更新し、成功後にruntime metadataへ反映 | 原則保持 | 保存完了revisionを記録 |
 | Project再読込 | 保存済みsnapshotへ置換 | 空で開始 | 読込直後は予約しない |
@@ -505,7 +604,52 @@ Backspace -> history BをUndoし、timing群 + lastActiveLineId=line 2を復元
 - 外部処理の完了が古いProjectへ遅れて反映されないよう、request tokenと対象IDを検証する
 - ユーザー素材を外部サービスへ送る処理は、本モデルのコマンド追加だけでは許可されない
 
-`AddClip`が参照できるのは、Projectへ登録済みのAssetだけである。Issue #2で素材読み込みをProjectへ接続する前に、検証済みAsset metadataを登録・解除する型付きコマンドを同Issueまたは独立Issueで定義する。それまでは、非同期処理の完了コールバックから`project.assets`を直接変更しない。
+### Asset登録の完了境界
+
+`AddClip`が参照できるのは、Projectへ登録済みのAssetだけである。素材を選んでタイムラインへ追加する一操作は、次の順で扱う。
+
+```text
+File選択
+  -> Asset IDとrequest tokenを確定
+  -> metadata / relinkHints / 任意fingerprintを端末内で解析
+  -> tokenとProjectの対象状態を再確認
+  -> RegisterAssetまたはBatch[RegisterAsset, AddClip]を純粋関数でpreflight
+  -> 端末内bindingと完成Project + historyをawaitなしで一度にcommit
+```
+
+`RegisterAsset`へ渡すAssetはSchemaと意味検証を通り、ローカル選択直後は`linkState: "available"`とする。Asset IDは非同期処理開始時に`mediaRuntime`だけへ予約し、Redoで再生成しない。`AssetPlacement`は完了時の最新Projectから確定するため、解析中に無関係なAssetが追加されても古いanchorを使わない。Projectだけcommitしてbinding登録に失敗した状態を公開せず、binding登録またはProject確定のどちらかが失敗した場合は両方を破棄する。
+
+ここで同時commitするbindingは、現在セッションの`EditorState.mediaRuntime`である。FileSystemFileHandle等をIndexedDBへ永続化する処理は別責務とし、その書き込み失敗で既に利用可能な現在セッションの編集を巻き戻さない。永続化できなかった場合はユーザーへ再リンクが必要になり得ることを案内し、次回読込ではProjectに保存された`available`を鵜呑みにせず、ランタイムを`unchecked`から再検証する。
+
+素材一覧へ読み込むだけなら`RegisterAsset`一件、同時にタイムラインへ置くなら`Batch[RegisterAsset, AddClip]`一件を履歴へ積む。後者のUndoは逆順にClipを削除してからAssetを解除し、Redoは同じAsset / Clip IDで再登録する。
+
+### Asset解除と参照整合
+
+`RemoveAsset`は、全Trackを走査して`assetId`を参照するClipが0件の場合だけ成功する。参照中Assetを暗黙に解除したり、参照Clipをmissing参照へ変えたりしない。
+
+ユーザーが「使用中のクリップも削除」を明示した場合だけ、参照する各Clipの`DeleteClip`を先、その後に`RemoveAsset`を置くBatchを作る。lock中のTrackや削除不能な参照が一つでもあればBatch全体を拒否する。inverseは逆順になるため、Assetを先に再登録してからClipとTransition、歌詞同期参照を復元できる。
+
+Asset解除はProject recordだけを対象とし、元ファイル、File handle、blob URL、OPFSキャッシュ、波形、サムネイルを削除しない。端末内bindingとキャッシュは別のGCが処理するが、現在Projectだけでなく`past` / `future`内の`RegisterAsset`が保持するAsset IDもGC rootとする。履歴からentryが除かれるか、再読込で履歴が空になるまで、Undo / Redoに必要なbindingを積極削除しない。ユーザーが一時データ削除を明示した場合も、ProjectのUndoで物理ファイル復元を約束しない。
+
+### linkState、metadata、再リンク
+
+`SetAssetLinkState`は起動時や権限変化後の観測結果だけを反映する。`available`は実際にFileへアクセスできた場合だけ、`missing`は確認後に見つからなかった場合だけ設定し、能力APIの自己申告だけで確定しない。
+
+明示的な再リンクでは、解析済みの完全な`relinkHints`、`metadata`、`mimeType`を`UpdateAssetMetadata`で一括置換し、同時に`linkState: "available"`へする。`mimeType: null`は既存の任意`mimeType`を削除する指定である。部分patchで古いcodecや尺を残さない。次をすべて満たさなければProjectとbindingを変更しない。
+
+- `kind`が既存Assetと一致する
+- 既存Clipの素材消費範囲が新しいmetadataでも有効
+- byte数、fingerprint等の候補照合結果をユーザーが確認済み
+- request tokenと対象Assetのruntime revisionが開始時の期待値と一致する
+- 完成ProjectがSchemaと全意味検証を通る
+
+同じfingerprintやファイル名のAssetが見つかっても自動統合しない。「既存素材へ再リンク」なら既存Asset IDを更新し、「別の素材として追加」なら新しいAsset IDで`RegisterAsset`する。候補が複数ならユーザー選択までcommitしない。
+
+### staleな非同期結果
+
+非同期要求は少なくとも`requestToken`、`projectId`、対象`assetId`、対象Assetごとのruntime revisionを保持する。完了時にtokenが最新か、Projectが同一か、対象Assetが存在しrevisionが変わっていないかを確認する。無関係な編集だけで全解析を捨てない一方、同じAssetへの後発再リンク、削除、Project再読込が起きた結果は破棄する。
+
+破棄した結果を自動再試行したり、別Assetへ転用したりしない。ログにはrequest tokenの短い診断IDとエラーコードだけを残し、ファイル名、fingerprint、metadata、絶対pathを含めない。
 
 ## 15. メモリ方針
 
@@ -537,6 +681,8 @@ interface CommandError {
 - 技術ログへ歌詞本文、TextClipの`textOverride`、ファイル名、素材hashを出さない
 
 原因未確認の失敗を「Projectが壊れた」と断定しない。コマンド失敗時はProjectが変更されていないことをユーザーへ伝える。
+
+参照中Assetの解除を拒否する場合は、たとえば「この素材はクリップで使われているため、プロジェクトから削除できませんでした。編集内容と元のファイルは変更されていません。先に使用中のクリップを削除してください。」のように、原因、影響、次の操作を分ける。表示文言は実装時に日本語メッセージカタログへ置き、ファイル名を埋め込まない。
 
 ## 17. 履歴例
 
@@ -587,6 +733,41 @@ inverse RestoreProjectSlice
   Transition Tを復元
 ```
 
+### 素材を登録してタイムラインへ追加
+
+```text
+forward Batch
+  1. RegisterAsset(asset A, anchors)
+  2. AddClip(clip C -> asset A)
+
+inverse InternalBatch
+  1. DeleteClip(clip C)
+  2. RemoveAsset(asset A)
+
+Redoは同じasset A / clip CのIDと配置anchorを使う
+```
+
+### 参照中の素材を解除
+
+```text
+RemoveAsset(asset A)
+  -> clip Cが参照中のため拒否
+  -> Project / history / File / cacheは変更なし
+
+ユーザーが参照Clip削除も確定した場合だけ:
+  Batch[DeleteClip(C), RemoveAsset(A)]
+```
+
+### 素材を再リンク
+
+```text
+File選択と解析 -> UpdateAssetMetadata(asset A)
+  Project recordと端末内bindingを同時に更新
+  pastへ追加しない
+  metadataが変わる場合は既存inverse / Redoが古い素材範囲へ依存し得るためpast / futureを破棄
+  元ファイルやキャッシュは削除しない
+```
+
 ## 18. テスト方針
 
 ### 共通契約
@@ -621,6 +802,14 @@ inverse RestoreProjectSlice
 - missing Assetを参照するClipでも、素材本体なしでProject編集をUndoできる
 - 保存後のUndo、再読込後の履歴空、保存失敗時の履歴維持
 - 履歴ラベルと診断へ歌詞本文・素材情報が出ない
+- Register / Remove / Undo / RedoでAsset IDと配列位置が安定する
+- 同一Asset IDは拒否し、同一fingerprintはユーザーが別素材追加を選べば別IDで登録できる
+- 参照中Assetの`RemoveAsset`がProject・履歴・端末内データを一切変更せず失敗する
+- `Batch[RegisterAsset, AddClip]`のUndo / Redoと、`Batch[DeleteClip, RemoveAsset]`の逆順復元が各中間Projectで有効
+- `RemoveAsset`とUndoが元ファイル、File handle、キャッシュを削除・復元しない
+- `SetAssetLinkState`が履歴を保持し、値が変わる`UpdateAssetMetadata`がhistory barrierとして`past` / `future`を破棄する
+- staleなrequest token、別Project、対象Asset revision不一致の結果をcommitしない
+- kind不一致や既存Clip範囲を満たさない再リンクがProjectとbindingを変更しない
 
 ブラウザUI実装後は、Playwrightでpointer cancel、focus中のBackspace、Cmd/Ctrl+Z、Shift+Cmd/Ctrl+Z、OS別キー表記を確認する。
 
@@ -628,13 +817,15 @@ inverse RestoreProjectSlice
 
 1. Project v0.1のTypeScript型と意味validatorを用意する
 2. 純粋な`applyCommand()`と共通契約test harnessを作る
-3. `AddClip`、`MoveClip`、`DeleteClip`でhistory managerを通す
-4. drag previewと一件確定を接続する
-5. Trim / Split / Duplicate / Transitionを追加する
-6. text styleとcaption timingを追加する
-7. ShiftCaptionRange、ImportLyrics、Split / MergeLyricLineを追加する
-8. 自動保存のrevision境界を接続する
-9. メモリと長時間操作を実測して履歴上限を決める
+3. `RegisterAsset`、`RemoveAsset`と端末内binding coordinatorを実装する
+4. `SetAssetLinkState`、`UpdateAssetMetadata`とstale request検証を実装する
+5. `AddClip`、`MoveClip`、`DeleteClip`でhistory managerを通す
+6. drag previewと一件確定を接続する
+7. Trim / Split / Duplicate / Transitionを追加する
+8. text styleとcaption timingを追加する
+9. ShiftCaptionRange、ImportLyrics、Split / MergeLyricLineを追加する
+10. 自動保存のrevision境界を接続する
+11. メモリと長時間操作を実測して履歴上限を決める
 
 アプリ基盤を作るIssue #2と実装順を調整し、別セッションが同時にProject型や時間関数を独自作成しないようにする。
 
@@ -661,3 +852,16 @@ inverse RestoreProjectSlice
 | 状態管理方式を選べる材料 | Section 4、15、19、20 |
 
 実装前の人間目視確認は不要である。ドラッグの操作感、履歴ラベル、ショートカット、タップ同期の自然さは、UI実装後に `HUMAN_VISUAL_CHECK_REQUIRED` として具体的な操作手順を提示する。
+
+## 22. Issue #18完了条件との対応
+
+| 完了条件 | 本書の対応 |
+|---|---|
+| `project.assets`を直接変更せず登録 | Section 7、9、14 |
+| 登録・解除が安定IDでUndo / Redo可能 | Section 7、9、17 |
+| 参照中Assetを暗黙に解除しない | Section 14、17 |
+| 元ファイル、File handle、キャッシュと責務分離 | Section 14 |
+| staleな非同期結果を防止 | Section 14、18 |
+| Issue #2が依存できる実装順・契約test | Section 18、19 |
+
+Issue #2の最小アプリ実装は、ここで定義したAsset command、binding coordinator、stale request検証を先に通す。ブラウザ実装前の設計文書について人間の目視確認は不要である。

@@ -1,6 +1,6 @@
 # DOGAGA プロジェクト形式 v0.1
 
-更新日: 2026-07-17
+更新日: 2026-07-18
 対象Issue: #5
 
 ## 1. 目的
@@ -391,10 +391,12 @@ const migrations: Record<string, Migration> = {
 
 Issue #2では、このサンプル形式を読み込み、少なくとも次を確認する。
 
+- 素材解析後は`RegisterAsset`、解除時は`RemoveAsset`を使い、`project.assets`を直接変更しない
+- 端末上の確認結果は`SetAssetLinkState`または`UpdateAssetMetadata`で反映し、File handleをProjectへ混ぜない
 - `asset.id` とローカルFileをランタイムで関連付けられる
 - `sourceStartUs` と `startUs` を同じ変換関数でプレビューへ渡せる
 - VFR素材のコンテナ時刻をマイクロ秒へ変換できる
 - ブラウザ再起動後にmissing表示と再リンクが成立する
 - 30秒素材で保存・読み込み後のIn / Outが変わらない
 
-Issue #6のUndo / Redoモデルは、Projectスナップショットを正本状態とし、コマンドがProject内の安定IDと整数マイクロ秒を更新する設計にする。自動保存と履歴スタックは分離し、コマンド専用の一時情報をProjectへ混ぜない。
+Issue #6・#18のUndo / Redoモデルは、Projectスナップショットを正本状態とし、コマンドがProject内の安定IDと整数マイクロ秒を更新する設計とする。Assetの登録・解除と端末上の観測更新の境界も`docs/EDIT_COMMAND_MODEL.md`を正本とする。自動保存と履歴スタックは分離し、コマンド専用の一時情報や端末内bindingをProjectへ混ぜない。
