@@ -219,8 +219,8 @@ DOGAGA_TEST_MEDIA_DIR/
     "export": "pass | fail | not-run"
   },
   "metrics": {
-    "seekErrorMilliseconds": null,
-    "audioSyncErrorMilliseconds": null,
+    "seekErrorUs": null,
+    "audioSyncErrorUs": null,
     "peakMemoryMegabytes": null,
     "exportSeconds": null
   },
@@ -229,7 +229,7 @@ DOGAGA_TEST_MEDIA_DIR/
 }
 ```
 
-`not-run`や`null`を成功値で埋めない。公式仕様、`isConfigSupported()`、`canPlayType()`等の自動判定、実ブラウザでの操作結果は別欄に記録する。あるOS・ブラウザの`measured`を別環境へ一般化しない。
+`seekErrorUs`と`audioSyncErrorUs`は整数マイクロ秒で記録し、未測定時は`null`とする。`not-run`や`null`を成功値で埋めない。公式仕様、`isConfigSupported()`、`canPlayType()`等の自動判定、実ブラウザでの操作結果は別欄に記録する。あるOS・ブラウザの`measured`を別環境へ一般化しない。
 
 ここで使う`fixtureId`はテスト素材台帳内のIDであり、`.dogaga`プロジェクト内の`asset.id`とは別の名前空間である。`fixtureSha256`はファイル全体のSHA-256で、再リンク候補用の`asset.fingerprint`（`sha256-sampled-v1`候補）ではない。また、fixtureの`status`は素材準備・検証の進行状態であり、Projectの`asset.linkState`（`unchecked` / `available` / `missing`）とは関連付けない。
 
