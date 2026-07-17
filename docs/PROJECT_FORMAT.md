@@ -57,6 +57,32 @@ timeUs = round(frameIndex × 1,000,000 × denominator ÷ numerator)
 
 音声サンプル位置も `sampleIndex / sampleRate` から絶対時刻を計算し、永続化の境界で一度だけマイクロ秒へ丸める。デコーダー内部でコーデック固有のタイムベースが必要な場合は、その処理内では有理数またはAPIのタイムスタンプを保持し、Projectへ書く境界で変換する。
 
+動画・音声Clipの `durationUs` はプロジェクト上の長さ、`playbackRate` の `numerator / denominator` は「プロジェクト時間1に対して進む素材時間」を表す。プロジェクト上のオフセット `timelineOffsetUs` が消費する素材時間は、次の有理数式を正本とする。
+
+```text
+sourceOffsetExactUs = timelineOffsetUs × playbackRate.numerator ÷ playbackRate.denominator
+sourceTimeExactUs = sourceStartUs + sourceOffsetExactUs
+```
+
+たとえば `playbackRate: 2/1` のClipは、プロジェクト上の1秒で素材を2秒消費する。保存値から導出できる `sourceDurationUs` や `sourceEndUs` はProjectへ重複保存しない。
+
+計算途中はJavaScriptの `Number` へ変換せず、整数の分子・分母を `BigInt` 等で保持する。デコーダー等の整数マイクロ秒APIへ渡す境界でだけ、非負値を **0.5マイクロ秒は素材終端側へ送る四捨五入** で丸める。
+
+```text
+roundHalfUp(numerator / denominator)
+  = floor((numerator + floor(denominator / 2)) / denominator)
+```
+
+意味検証では丸め後の値ではなく、次の交差積を整数で比較し、素材の正確な範囲を超えていないことを確認する。
+
+```text
+(sourceStartUs × rate.denominator)
+  + (durationUs × rate.numerator)
+  <= asset.metadata.durationUs × rate.denominator
+```
+
+`playbackRate` は最大公約数で約分済みでなければならない。保存・再読込は `sourceStartUs`、`durationUs`、約分済みの `playbackRate` をそのまま保持し、上記の同じ純粋関数で導出値を再計算する。これにより速度変更後も保存を挟んでIn / Outが変わらない。
+
 ### 3.2 可変フレームレート素材
 
 VFR素材のクリップ位置とトリム位置は、フレーム番号ではなく素材タイムライン上の `sourceStartUs` とプロジェクト上の `startUs` で表す。
@@ -100,7 +126,7 @@ VFR素材のクリップ位置とトリム位置は、フレーム番号では�
 3. 尺、解像度、コンテナ等のメタデータが一致する
 4. 候補が複数ならユーザーへ選択を求める
 
-ファイル名だけの一致で自動確定しない。ハッシュ方式 `sha256-sampled-v1` の具体的な採取範囲はIssue #2の性能検証後に確定し、それまでは `fingerprint` を省略できる。
+ファイル名だけの一致で自動確定しない。`fingerprint` は省略可能であり、`method` と `value` が両方一致するときだけ同じ方式の指紋として比較する。`method` は拡張可能な不透明識別子で、採取範囲、ハッシュ関数、バージョンを含む実際の方式はIssue #2の性能検証後に定義する。方式を定義するまでは、特定の標準名を割り当てない。
 
 ### 3.5 未知フィールドと拡張
 
@@ -175,7 +201,7 @@ IDはユーザーへ意味を見せない不透明な文字列とし、Project�
 
 ### 4.4 TrackとClip
 
-`track.kind` は `video`、`audio`、`text` のいずれか。同じ種類のClipだけを持つ。Schema単体ではTrackとClipの種類一致を完全には検証できないため、読み込み時に意味検証する。
+`track.kind` は `video`、`audio`、`text` のいずれか。同じ種類のClipだけを持つ。この組み合わせとaudio / text Trackの `transitions` が空であることはSchemaでも検証し、参照するAssetの種類は読み込み時の意味検証で補う。
 
 すべてのClipは安定した `id` と並び順 `order` を持つ。
 
@@ -187,13 +213,27 @@ IDはユーザーへ意味を見せない不透明な文字列とし、Project�
 - `sourceStartUs`: 元素材上の開始時刻
 - `playbackRate`: 有理数。v0.1のUIでは原則 `1/1`
 
+動画・音声Assetでは、前節の有理数式で素材消費範囲を検証する。画像Assetには時間方向の素材尺がないため、この範囲検証を適用せず、`sourceStartUs: 0` と `playbackRate: 1/1` を要求する。画像の表示時間はVideoClipの `durationUs` だけで表す。
+
+動画・画像を置くVideoClipは、静的な `transform` も持つ。
+
+- `position`: キャンバス左上を `(0, 0)` とするピクセル座標。変換後の表示領域の中心を置く位置
+- `scale`: fit適用後の幅と高さへ掛ける正の倍率
+- `rotationDegrees`: 表示領域の中心を軸とする時計回りの回転角
+- `fit`: crop後の素材をキャンバスへ合わせる `contain`、`cover`、`stretch`、または元ピクセル寸法の `none`
+- `crop`: メタデータの回転を適用した素材に対し、各辺から除く割合（0以上1未満）
+
+描画順は、素材メタデータの回転、crop、fit、scale、`position` を中心とした回転と配置の順とする。cropの左右合計と上下合計はそれぞれ1未満でなければならない。キーフレームはv0.1の対象外であり、これらの値はClip全期間で一定とする。
+
 テキストClip:
 
 - `role`: `title`、`caption`、`lyric`
-- `text`: UTF-8の表示文字列。日本語の空白と改行を勝手に正規化しない
+- title / captionの `text`: UTF-8の表示文字列。日本語の空白と改行を勝手に正規化しない
+- lyricの `lyricLineRef`: 正本となる歌詞行への参照
+- lyricの `textOverride`: その表示Clipだけを意図的に別表記にする場合の任意上書き
 - `timing`: `unsynced` または開始・長さを持つ `timed`
 - `styleId`: 共通文字スタイル
-- `lyricLineRef`: 歌詞由来の場合の原文参照
+- `layout`: キャンバス左上を `(0, 0)` とする表示基準点 `position`、基準点へ接する9方向の `anchor`、基準点を軸とする時計回りの `rotationDegrees`
 
 未同期の歌詞行は `timing.status: "unsynced"` で保持できる。同期済み時刻を `0` や負数で代用しない。
 
@@ -202,22 +242,36 @@ IDはユーザーへ意味を見せない不透明な文字列とし、Project�
 歌詞原文と編集行を、タイムライン表示から分離して保持する。
 
 - `sourceText` は取り込み時の原文
-- `lines[].text` はユーザーが確認した行本文
+- `lines[].text` はユーザーが確認した行本文であり、歌詞本文の唯一の正本
 - 改行と空白は作者の意図として保持する
 - 行の時刻は対応するTextClipの `timing` を正本とする
 - `lyricLineRef` から原文行を参照する
 
-同じ行から複数の表示Clipを作ることは許可する。行の結合・分割時は、参照するClipを同じ編集コマンド内で更新する。
+lyric TextClipは通常の `text` を持たず、`lyricLineRef` が指す `LyricLine.text` を表示する。同じ行から複数の表示Clipを作ることは許可し、行本文を編集すると `textOverride` のない全表示へ反映する。表記を意図的に変える表示だけ `textOverride` を持ち、上書きを削除すると正本表示へ戻る。title / captionは逆に `text` を必須とし、歌詞参照や `textOverride` を持たない。
+
+行の結合・分割は、行配列と参照するClipを一つの編集コマンドで更新する。各旧Clipをどの新しい行へ対応させるかをコマンド引数で明示し、曖昧な参照を自動推測しない。`textOverride` はClip固有の表示意図として、Clipを削除しない限り保持する。
+
+`syncSettings.audioClipId` は、同期時刻の基準とした配置済みAudioClipを指す。歌詞時刻はプロジェクト時刻なので、同じAssetを異なる位置へ複数配置しても対象を一意にできる。参照先のAudioClipや素材がmissingでもIDは保持し、再リンク後に同じ配置を基準として再開する。
 
 ### 4.6 Transition
 
-トランジションはClipのプロパティではなく、Trackが所有する。`fromClipId` と `toClipId` の少なくとも一方を指定する。
+トランジションはClipのプロパティではなく、video Trackだけが所有する。AudioClipのフェードは `fades`、TextClipの演出は将来のeffectモデルで扱う。
 
-- 2つ指定: クリップ間のクロスディゾルブ等
-- `fromClipId` だけ: 末尾フェード
-- `toClipId` だけ: 先頭フェード
+- `crossDissolve`: `fromClipId` と `toClipId` の両方を指定する
+- `fadeToBlack`: `fromClipId` だけを指定する
+- `fadeFromBlack`: `toClipId` だけを指定する
 
-参照先は同じTrack内に存在しなければならない。v0.1では `cut`、`crossDissolve`、`fadeToBlack`、`fadeFromBlack` を予約する。高度な文字アニメーションはTransitionへ混ぜず、将来のClip effectモデルで扱う。
+`durationUs` はすべて1以上とし、参照先は同じvideo Track内に存在しなければならない。カットは2つのClipの境界そのものなのでTransitionとして保存せず、境界にTransitionがない状態で表す。
+
+クロスディゾルブの2 Clipは `order` が連続し、`from` の終了と `to` の開始が `durationUs` だけ重ならなければならない。
+
+```text
+to.startUs = from.startUs + from.durationUs - transition.durationUs
+```
+
+`durationUs` は両Clipの `durationUs` 未満とする。重なり部分は両Clipに明示された素材範囲から再生し、Transition専用の隠れた素材ハンドルは持たない。既存の非重複境界へディゾルブを追加する編集コマンドは、利用可能な素材範囲を確認してClipの `sourceStartUs` / `startUs` / `durationUs` を更新し、重なりをProjectへ明示する。動画素材の端に十分なハンドルがない場合は追加を失敗または短縮し、画像は素材尺による制限を受けない。
+
+`fadeToBlack` はfrom Clip末尾の、`fadeFromBlack` はto Clip先頭の `durationUs` 区間を使い、各durationは対象Clipの長さ以下とする。高度な文字アニメーションはTransitionへ混ぜない。
 
 ### 4.7 Marker
 
@@ -236,13 +290,13 @@ v0.1はTextStyleだけを定義する。フォント名は指定であり、フ�
 JSON Schema検証に通った後、少なくとも次を検証する。
 
 1. 全IDが要求されたスコープで一意である
-2. `assetId`、`styleId`、`lyricLineRef` が存在する
+2. `assetId`、`styleId`、`lyricLineRef`、`audioClipId` が存在し、`audioClipId` はaudio Track内のAudioClipを指す
 3. Trackの `kind` と各Clipの `type` が一致する
 4. 動画・音声Clipの素材種類が利用方法と矛盾しない
 5. `startUs + durationUs` が安全な整数で、キャンバス範囲内にある
-6. `sourceStartUs` と再生範囲が素材尺を超えない
-7. timedのTextClipがキャンバス範囲内にある
-8. Transitionの参照先が同じTrackにあり、期間が隣接範囲を超えない
+6. `playbackRate` が約分済みであり、動画・音声では `sourceStartUs` と有理数で計算した正確な素材消費範囲が素材尺を超えず、画像では `sourceStartUs: 0` と `playbackRate: 1/1` である
+7. VideoClipのcrop左右合計・上下合計がそれぞれ1未満であり、timedのTextClipがキャンバス範囲内にある
+8. Transitionがvideo Trackだけにあり、kindに必要な参照形状、Clipの連続順、重なり、素材ハンドル、duration条件を満たす
 9. LyricDocumentの `line.order` とTrack内の並び順が重複しない
 10. `createdAt <= updatedAt` である
 11. `frameRate` と `playbackRate` の分母が0でない
@@ -313,7 +367,7 @@ const migrations: Record<string, Migration> = {
 
 ## 10. v0.1の既知の制限と未決事項
 
-- `sha256-sampled-v1` の採取範囲と性能はIssue #2で実測して確定する
+- fingerprintの方式名、採取範囲、性能はIssue #2で実測して確定する。確定までは省略し、仮の標準名を保存しない
 - ブラウザ間でFile System Access APIの永続ハンドルを移送できないため、再リンク操作が必要になる
 - スロー／早回しUIはMVP必須ではなく、`playbackRate` は将来性のための表現だけを先に持つ
 - キーフレーム、エフェクトチェーン、マスク、高度なトランジションはv0.1対象外

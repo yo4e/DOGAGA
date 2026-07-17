@@ -359,12 +359,14 @@ LyricsDocument
 │  ├─ styleId
 │  └─ overrides
 ├─ syncSettings
-│  ├─ audioAssetId
+│  ├─ audioClipId
 │  ├─ latencyOffsetMs
 │  ├─ endGapMs
 │  └─ lastActiveLineId
 └─ syncHistory[]
 ```
+
+`audioClipId` は素材そのものではなく、タイムラインへ配置した音声Clipを参照する。歌詞時刻はプロジェクト時刻で保持するため、同じ音声素材を異なる開始位置へ複数回配置しても同期対象を一意にできる。
 
 時間値は浮動小数点秒だけで保持せず、内部基準を統一する。
 

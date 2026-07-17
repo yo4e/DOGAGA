@@ -90,6 +90,24 @@
             "denominator": 1
           },
           "opacity": 1,
+          "transform": {
+            "position": {
+              "x": 960,
+              "y": 540
+            },
+            "scale": {
+              "x": 1,
+              "y": 1
+            },
+            "rotationDegrees": 0,
+            "fit": "cover",
+            "crop": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
           "extensions": {}
         }
       ],
@@ -141,7 +159,6 @@
           "type": "text",
           "order": 0,
           "role": "lyric",
-          "text": "風のなかで歌う",
           "timing": {
             "status": "timed",
             "startUs": 1000000,
@@ -151,6 +168,14 @@
           "lyricLineRef": {
             "documentId": "lyrics_001",
             "lineId": "lyric_line_001"
+          },
+          "layout": {
+            "position": {
+              "x": 960,
+              "y": 900
+            },
+            "anchor": "bottomCenter",
+            "rotationDegrees": 0
           },
           "extensions": {}
         }
@@ -172,7 +197,7 @@
         }
       ],
       "syncSettings": {
-        "audioAssetId": "asset_audio_001",
+        "audioClipId": "clip_audio_001",
         "latencyOffsetUs": -80000,
         "endGapUs": 50000,
         "lastActiveLineId": "lyric_line_001"

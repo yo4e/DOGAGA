@@ -1,6 +1,5 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://dogaga.example/schemas/dogaga-project-0.1.0.schema.json",
   "title": "DOGAGA Project v0.1.0",
   "description": "DOGAGAのUTF-8 JSONプロジェクト形式v0.1.0。元素材は含まない。",
   "type": "object",
@@ -143,6 +142,138 @@
         }
       }
     },
+    "Position": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "x",
+        "y"
+      ],
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        }
+      }
+    },
+    "Crop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "top",
+        "right",
+        "bottom",
+        "left"
+      ],
+      "properties": {
+        "top": {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 1
+        },
+        "right": {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 1
+        },
+        "bottom": {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 1
+        },
+        "left": {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 1
+        }
+      }
+    },
+    "VisualTransform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "position",
+        "scale",
+        "rotationDegrees",
+        "fit",
+        "crop"
+      ],
+      "properties": {
+        "position": {
+          "$ref": "#/$defs/Position"
+        },
+        "scale": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "x",
+            "y"
+          ],
+          "properties": {
+            "x": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 100
+            },
+            "y": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 100
+            }
+          }
+        },
+        "rotationDegrees": {
+          "type": "number",
+          "minimum": -180,
+          "exclusiveMaximum": 180
+        },
+        "fit": {
+          "enum": [
+            "contain",
+            "cover",
+            "stretch",
+            "none"
+          ]
+        },
+        "crop": {
+          "$ref": "#/$defs/Crop"
+        }
+      }
+    },
+    "TextLayout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "position",
+        "anchor",
+        "rotationDegrees"
+      ],
+      "properties": {
+        "position": {
+          "$ref": "#/$defs/Position"
+        },
+        "anchor": {
+          "enum": [
+            "topLeft",
+            "topCenter",
+            "topRight",
+            "centerLeft",
+            "center",
+            "centerRight",
+            "bottomLeft",
+            "bottomCenter",
+            "bottomRight"
+          ]
+        },
+        "rotationDegrees": {
+          "type": "number",
+          "minimum": -180,
+          "exclusiveMaximum": 180
+        }
+      }
+    },
     "CreatedWith": {
       "type": "object",
       "additionalProperties": false,
@@ -206,11 +337,15 @@
       ],
       "properties": {
         "method": {
-          "const": "sha256-sampled-v1"
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
         },
         "value": {
           "type": "string",
-          "pattern": "^[0-9A-Fa-f]{64}$"
+          "minLength": 1,
+          "maxLength": 4096
         }
       }
     },
@@ -359,6 +494,7 @@
         "sourceStartUs",
         "playbackRate",
         "opacity",
+        "transform",
         "extensions"
       ],
       "properties": {
@@ -391,6 +527,9 @@
           "type": "number",
           "minimum": 0,
           "maximum": 1
+        },
+        "transform": {
+          "$ref": "#/$defs/VisualTransform"
         },
         "extensions": {
           "$ref": "#/$defs/Extensions"
@@ -532,9 +671,9 @@
         "type",
         "order",
         "role",
-        "text",
         "timing",
         "styleId",
+        "layout",
         "extensions"
       ],
       "properties": {
@@ -559,6 +698,10 @@
           "type": "string",
           "maxLength": 20000
         },
+        "textOverride": {
+          "type": "string",
+          "maxLength": 20000
+        },
         "timing": {
           "$ref": "#/$defs/TextTiming"
         },
@@ -568,10 +711,51 @@
         "lyricLineRef": {
           "$ref": "#/$defs/LyricLineRef"
         },
+        "layout": {
+          "$ref": "#/$defs/TextLayout"
+        },
         "extensions": {
           "$ref": "#/$defs/Extensions"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "role": {
+                "const": "lyric"
+              }
+            },
+            "required": [
+              "role"
+            ]
+          },
+          "then": {
+            "required": [
+              "lyricLineRef"
+            ],
+            "properties": {
+              "lyricLineRef": {
+                "$ref": "#/$defs/LyricLineRef"
+              },
+              "text": false
+            }
+          },
+          "else": {
+            "required": [
+              "text"
+            ],
+            "properties": {
+              "text": {
+                "type": "string",
+                "maxLength": 20000
+              },
+              "lyricLineRef": false,
+              "textOverride": false
+            }
+          }
+        }
+      ]
     },
     "Transition": {
       "type": "object",
@@ -590,7 +774,6 @@
         },
         "kind": {
           "enum": [
-            "cut",
             "crossDissolve",
             "fadeToBlack",
             "fadeFromBlack"
@@ -617,22 +800,47 @@
           ]
         },
         "durationUs": {
-          "$ref": "#/$defs/TimeUs"
+          "$ref": "#/$defs/PositiveTimeUs"
         },
         "extensions": {
           "$ref": "#/$defs/Extensions"
         }
       },
-      "anyOf": [
+      "oneOf": [
         {
           "properties": {
+            "kind": {
+              "const": "crossDissolve"
+            },
             "fromClipId": {
+              "$ref": "#/$defs/Id"
+            },
+            "toClipId": {
               "$ref": "#/$defs/Id"
             }
           }
         },
         {
           "properties": {
+            "kind": {
+              "const": "fadeToBlack"
+            },
+            "fromClipId": {
+              "$ref": "#/$defs/Id"
+            },
+            "toClipId": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "fadeFromBlack"
+            },
+            "fromClipId": {
+              "type": "null"
+            },
             "toClipId": {
               "$ref": "#/$defs/Id"
             }
@@ -705,7 +913,60 @@
         "extensions": {
           "$ref": "#/$defs/Extensions"
         }
-      }
+      },
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "kind": {
+                  "const": "video"
+                },
+                "clips": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/VideoClip"
+                  }
+                }
+              }
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "audio"
+                },
+                "clips": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/AudioClip"
+                  }
+                },
+                "transitions": {
+                  "type": "array",
+                  "maxItems": 0
+                }
+              }
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "text"
+                },
+                "clips": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/TextClip"
+                  }
+                },
+                "transitions": {
+                  "type": "array",
+                  "maxItems": 0
+                }
+              }
+            }
+          ]
+        }
+      ]
     },
     "LyricLine": {
       "type": "object",
@@ -737,13 +998,13 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "audioAssetId",
+        "audioClipId",
         "latencyOffsetUs",
         "endGapUs",
         "lastActiveLineId"
       ],
       "properties": {
-        "audioAssetId": {
+        "audioClipId": {
           "oneOf": [
             {
               "$ref": "#/$defs/Id"
