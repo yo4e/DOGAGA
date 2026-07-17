@@ -190,7 +190,9 @@ interface CaptionTimingUpdate {
 
 interface SetCaptionTimingCommand extends CommandBase {
   type: "SetCaptionTiming";
+  documentId: Id;
   updates: readonly CaptionTimingUpdate[];
+  lastActiveLineId: Id | null;
 }
 
 interface ShiftCaptionRangeCommand extends CommandBase {
@@ -339,7 +341,7 @@ Undo / Redoの実行中に通常の履歴項目を追加してはならない。
 | `AddTransition` | 既に有効な重なりを持つvideo TrackへTransition追加 | Transition ID | Track種別、隣接、重なり、handle不足 |
 | `RemoveTransition` | 指定Transitionを削除 | 削除したTransitionとTrack ID | Transition不在、Track lock中 |
 | `UpdateTextStyle` | 指定styleの変更対象フィールド | 同じフィールドの変更前値 | style不在、値域外 |
-| `SetCaptionTiming` | 一回のタップで影響するTextClip timing群 | 対象Clipの変更前timing群 | 空・重複ID、text/lyric以外、順序・範囲違反 |
+| `SetCaptionTiming` | 一回のタップで影響する歌詞TextClip timing群と`lastActiveLineId` | 対象Clipの変更前timing群と変更前`lastActiveLineId` | 空・重複ID、document・行・Clip不在、歌詞Clip以外、参照document不一致、順序・範囲違反 |
 | `ShiftCaptionRange` | 明示した同期済みTextClip群の時刻 | 逆向きdeltaと対象ID | 未同期を含む、一件でも範囲外、ID重複・不在 |
 | `ImportLyrics` | LyricDocumentと未同期TextClip群 | 追加したdocument / clip ID | ID重複、参照不整合、上限超過 |
 | `SplitLyricLine` | 行配列と全参照Clipを同時更新 | 影響した行・Clip参照のslice | 割当不足、本文不一致、参照の孤立 |
@@ -398,12 +400,17 @@ Clipの値は複製するが、Clip IDと`order`は新しくする。Assetと`ly
 
 ```text
 command全体の形を検証
-  -> 非公開draftへsubcommandを順番に適用・検証
-       ├─ 一件でも失敗 -> draftを破棄し、Project / historyを変更しない
-       └─ 全件成功 -> 完成draftを意味検証し、一度だけcommit
+  -> 非公開draftへsubcommandを順番に適用
+       -> 各subcommand後にSchema + Project全体の意味検証
+            ├─ 一件でも失敗 -> draftを破棄し、Project / historyを変更しない
+            └─ 全件成功 -> 完成draftを一度だけcommit
 ```
 
-Batchのinverseは、各subcommandのinverseを**逆順**に並べた`InternalBatch`とする。subcommandを個別の履歴へ積まない。後続subcommandが先行subcommandの作成したIDを参照する場合も、非公開draft上で順番に検証できる。
+v0.1では、**各中間Projectも常に有効**な方式へ固定する。subcommandの順序はBatchの意味の一部であり、各subcommand適用後にJSON SchemaとProject全体のクロスオブジェクト意味検証を通す。途中draftは検証済みであってもUI、購読者、自動保存へ公開しない。
+
+たとえば、Transition制約を壊すClip移動とTransition削除を一操作にする場合は、`RemoveTransition`を先、`MoveClip`を後に置く。逆順で最初の`MoveClip`が意味検証に失敗するBatchは、executorが順序を入れ替えず全体を拒否する。一時的な不正状態を経なければ表現できない操作は、局所変更を一つのAtomicEditCommandへまとめて各確定状態を有効にする。
+
+Batchのinverseは、各subcommandのinverseを**逆順**に並べた`InternalBatch`とする。逆順の各適用後もSchemaとProject全体の意味検証を通す。subcommandを個別の履歴へ積まない。後続subcommandが先行subcommandの作成したIDを参照する場合も、先行適用後の有効な非公開draft上で参照を検証できる。
 
 Batchを使う例:
 
@@ -440,15 +447,19 @@ coalesce後もinverseは最初の値、forwardは最後の絶対値を保持す�
 
 ## 12. 歌詞タップ同期の履歴
 
-Space一回を、一つの`SetCaptionTiming`として`past`へ積む。
+Space一回を、一つの`SetCaptionTiming`として`past`へ積む。`SetCaptionTiming`はTextClipのtimingだけでなく、対象`documentId`の`syncSettings.lastActiveLineId`も同時に更新する。
 
-一回のタップで、現在行の開始時刻に加えて前行の終了時刻が`endGapUs`から決まる場合、両TextClipのtimingを同じ`updates[]`へ入れる。Undoは両方を同時に戻す。
+一回のタップで、現在行の開始時刻に加えて前行の終了時刻が`endGapUs`から決まる場合、両TextClipのtimingを同じ`updates[]`へ入れる。各対象は`lyricLineRef.documentId`がコマンドの`documentId`と一致する歌詞TextClipでなければならない。`lastActiveLineId`にはタップ後に現在行となる次行IDを入れ、最終行を記録して次行がない場合は`null`を入れる。非`null`のIDは同じLyricDocumentに存在する行でなければならない。
+
+inverseは変更前timing群と変更前`lastActiveLineId`を同じ`SetCaptionTiming`として保持する。これにより、Projectへ保存する現在行とUIの同期位置がUndo / Redoで食い違わない。
 
 ```text
-タップ1 -> SetCaptionTiming(line 1)                 history A
-タップ2 -> SetCaptionTiming(line 2 + line 1終端)    history B
-Backspace -> history BをUndo
+開始時: lastActiveLineId = line 1
+タップ1 -> timing(line 1) + lastActiveLineId=line 2       history A
+タップ2 -> timing(line 2 + line 1終端) + lastActiveLineId=line 3   history B
+Backspace -> history BをUndoし、timing群 + lastActiveLineId=line 2を復元
 再タップ -> 新しいhistory B'を追加し、Redoは破棄
+最終行タップ -> timing(final) + lastActiveLineId=null
 ```
 
 同期モード中のBackspaceは、履歴末尾が同じ`lyricSyncSessionId`のタップならその一件をUndoする。それ以外の通常編集を誤って戻さない。同期モードを終了した後は、通常のUndoとして同じ履歴を一件ずつ戻せる。
@@ -598,9 +609,14 @@ inverse RestoreProjectSlice
 - 30fpsで整数にならない時刻、29.97fps、`playbackRate`適用後のSplit / Trim
 - Audio fadeとTransition制約を破る操作の原子的拒否
 - drag 100イベントが履歴1件になる
-- Batch途中の失敗で全変更が破棄される
+- Batchの各中間ProjectがSchema・全意味検証を通る
+- `RemoveTransition`より先に制約を壊す`MoveClip`を置いたBatchが途中失敗し、Project・履歴・購読通知をすべて変更しない
+- Batchのinverseが逆順に適用され、各中間Projectも有効なまま元状態へ戻る
+- 後続subcommandが先行subcommandの作成したIDを参照でき、先行作成に失敗した場合は全体を破棄する
 - ShiftCaptionRangeの一件だけ範囲外でも全件不変
-- タップ、Backspace、再タップでRedoが正しく破棄される
+- 先頭行・中間行・最終行のタップで、timing群と`lastActiveLineId`が同じ履歴項目として進む
+- Backspace / Undoでtiming群と`lastActiveLineId`が同時に戻り、Redoで同時に進む
+- Undo後の再タップで新しいtiming群と`lastActiveLineId`が確定し、旧Redoが破棄される
 - Split / Merge後も`lyricLineRef`が孤立しない
 - missing Assetを参照するClipでも、素材本体なしでProject編集をUndoできる
 - 保存後のUndo、再読込後の履歴空、保存失敗時の履歴維持
