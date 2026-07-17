@@ -141,5 +141,6 @@ export const ja = {
 - `README.md`
 - `AGENTS.md`
 - `docs/PRODUCT_VISION.md`
+- `docs/JAPANESE_UI_GLOSSARY.md`
 - `docs/LYRIC_SYNC_UX.md`
 - `docs/ADR-001-DESKTOP-FIRST.md`
