@@ -344,37 +344,39 @@ MVP後の実制作で必要性を確認する。
 - 音声出力機器変更時は警告する候補を持つ
 - キー長押しによる連続記録を無効にする
 
-## 14. データモデル案
+## 14. Projectデータモデルとの対応
+
+永続形式の正本は `docs/PROJECT_FORMAT.md` と `schemas/dogaga-project.schema.json` とする。本節は歌詞同期UXとProject v0.1の対応を示す概念図であり、別の保存形式を定義しない。
 
 ```text
-LyricsDocument
-├─ sourceText
-├─ normalizedText
-├─ lines[]
+Project
+├─ lyricDocuments[]
 │  ├─ id
-│  ├─ text
-│  ├─ startTime
-│  ├─ endTime
-│  ├─ syncStatus
-│  ├─ styleId
-│  └─ overrides
-├─ syncSettings
-│  ├─ audioAssetId
-│  ├─ latencyOffsetMs
-│  ├─ endGapMs
-│  └─ lastActiveLineId
-└─ syncHistory[]
+│  ├─ sourceText
+│  ├─ lines[]
+│  │  ├─ id
+│  │  ├─ order
+│  │  └─ text                 歌詞本文の正本
+│  └─ syncSettings
+│     ├─ audioClipId
+│     ├─ latencyOffsetUs
+│     ├─ endGapUs
+│     └─ lastActiveLineId
+└─ tracks[kind = text].clips[]
+   ├─ role = lyric
+   ├─ lyricLineRef             documentId + lineId
+   ├─ timing                   unsynced または startUs + durationUs
+   ├─ styleId
+   ├─ layout
+   └─ textOverride             表示だけを変える場合の任意上書き
 ```
 
-時間値は浮動小数点秒だけで保持せず、内部基準を統一する。
-
-候補:
-
-- 整数マイクロ秒
-- 整数ミリ秒
-- タイムベース付き整数tick
-
-映像fpsと音声サンプルレートをまたぐため、整数マイクロ秒または明示的なタイムベースを推奨する。
+- 歌詞本文は `LyricLine.text` だけを正本とし、歌詞TextClipへ重複保存しない。
+- 行の同期状態、開始時刻、表示時間は、行を参照するTextClipの `timing` が正本である。
+- スタイルと表示位置はTextClipの `styleId` と `layout` に保存する。
+- `audioClipId` は素材そのものではなく、タイムラインへ配置した音声Clipを参照する。歌詞時刻はプロジェクト時刻で保持するため、同じ音声素材を異なる開始位置へ複数回配置しても同期対象を一意にできる。
+- 保存する時間値は整数マイクロ秒に統一し、フィールド名を `*Us` とする。画面でミリ秒表示や秒入力を使っても、Projectへ浮動小数点秒や暗黙のミリ秒を保存しない。
+- タップごとの一時履歴、同期テイク、Undo / Redoスタックはランタイムの編集コマンドとして扱い、`.dogaga` v0.1へ `syncHistory[]` として保存しない。確定した結果だけをTextClipと `syncSettings` へ反映する。
 
 ## 15. Undo / Redo単位
 
