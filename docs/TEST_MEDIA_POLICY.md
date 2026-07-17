@@ -22,46 +22,66 @@
 
 ## 3. 状態モデル
 
-素材の状態は次のいずれかとする。状態はファイルの存在ではなく、確認済み範囲を表す。
+素材の準備、権利審査、ブラウザ実測は互いに独立した軸である。一つの`status`へまとめない。
 
-| 状態 | 意味 | 次へ進む条件 |
+### 3.1 準備状態
+
+`preparationStatus`はファイルと生成・検査手順の準備状態だけを表す。
+
+| 値 | 意味 | 次へ進む条件 |
 |---|---|---|
-| `planned` | 条件だけを定義し、ファイルは未準備 | 生成または権利審査を完了する |
-| `generated` | 指定条件で生成したが、決定性・内容・メタデータを未検証 | ハッシュと構造を検証する |
-| `generation-verified` | 生成レシピ、SHA-256、許可メタデータを確認した | 対象ブラウザで測定する |
-| `rights-reviewed` | 第三者素材の出所と利用条件を人間が確認した | 必要ならメタデータ除去後に測定する |
-| `measured` | 特定OS・ブラウザ・バージョンで実測記録がある | 別環境の結果は別レコードとして追加する |
-| `rejected` | 権利、個人情報、破損、条件不一致等により使用しない | 理由を残し、テストから除外する |
+| `planned` | 条件だけを定義し、ファイルは未準備 | 生成または収録する |
+| `generated` | 指定条件で生成・収録したが、内容やメタデータを未検証 | ハッシュと構造を検証する |
+| `verified` | 生成レシピ、SHA-256、内容、許可メタデータを確認した | 対象ブラウザで測定できる |
+| `rejected` | 破損、条件不一致等によりfixtureとして使わない | 理由を残し、テストから除外する |
 
-`generation-verified`や`rights-reviewed`を`measured`の代用にしてはならない。実測記録には最低限、素材ID、素材SHA-256、OS、ブラウザ名と完全なバージョン、実施日、結果、測定者、関連Issueまたはログを記録する。
+### 3.2 権利審査状態
+
+`rights.reviewStatus`は`pending | reviewed | rejected`のいずれかとする。`reviewed`では`reviewedBy`と`reviewedAt`を必須とし、権利者、ライセンス選択状態、ローカル利用、CI artifact、共同開発者間の移送、公開再配布を個別に記録する。準備済みでも権利審査が`pending`なら、許可された範囲を超えて共有しない。
+
+### 3.3 環境ごとの実測状態
+
+実測はfixture直下の`measurements[]`へ、OS・OSバージョン・ブラウザ・ブラウザ完全バージョンごとに追加する。各レコードは`status`（`not-run | completed | blocked`）と操作別の`results`を持つ。ある環境の`completed`をfixture全体や別環境へ一般化しない。
+
+`preparationStatus: verified`や`rights.reviewStatus: reviewed`を実測済みの代用にしてはならない。実測完了レコードには最低限、素材SHA-256、環境、実施日、操作別結果、測定者、関連Issueまたはログを記録する。
 
 ## 4. 必要素材マトリクス
 
-正確な値と状態の正本は `test/fixtures/manifest.json` とする。次の表はテスト目的の一覧である。
+正確な値、状態、fixture IDの正本は `test/fixtures/manifest.json` とする。Issue #2と#4の記録は次のIDを参照し、別名の同等fixtureを定義しない。
 
-| 区分 | 条件 | 主な目的 | 保管 | 初期状態 |
+| fixture ID | 条件 | 主な目的 | 保管 | 準備状態 |
 |---|---|---|---|---|
-| WAV無音 | 1秒、48kHz、mono、PCM 16-bit | 無音、duration、mono | 都度生成 | `generation-verified` |
-| WAV基準パルス | 3秒、48kHz、stereo、0.5/1.5/2.5秒 | A/V同期、シーク基準 | 都度生成 | `generation-verified` |
-| WAV連続音 | 3秒、48kHz、stereo、左右別周波数 | 波形、チャンネル処理 | 都度生成 | `generation-verified` |
-| PNGカラーバー | 320×180、RGB | 画像読込、色、16:9 | 都度生成 | `generation-verified` |
-| PNG座標グリッド | 320×180、RGB | 合成座標、比率 | 都度生成 | `generation-verified` |
-| MP4基本 | H.264/AAC、720p/30fps/CFR、10秒 | 最小読込、再生、同期 | ローカル | `planned` |
-| MP4基準負荷 | H.264/AAC、1080p/30fps/CFR、30秒 | Issue #2完了条件、書出し | ローカル | `planned` |
-| MP4長さ | H.264/AAC、1080p/30fps/CFR、60秒 | メモリ、長めのシーク | ローカル | `planned` |
-| MP4 VFR | H.264/AAC、1080p、VFR、30秒 | PTS、シーク、CFR変換 | ローカル | `planned` |
-| iPhone実機 | 10〜30秒、回転情報、実際のVFR/codecを解析 | 実機由来の差 | 非公開ローカル | `planned` |
-| WebM | VP9/Opus、720p/30fps、10秒 | 非MP4入力 | ローカル | `planned` |
-| MP3 | CBR 3秒、VBR 30秒 | duration、シーク | ローカル | `planned` |
-| JPEG | 320×180、Orientation 1/6/8 | EXIF回転、メタデータ | ローカル | `planned` |
+| `audio-silence-wav-1s` | 1秒、48kHz、mono、PCM 16-bit | 無音、duration、mono | 都度生成 | `verified` |
+| `audio-sync-pulses-wav-3s` | 3秒、48kHz、stereo、0.5/1.5/2.5秒 | A/V同期、シーク基準 | 都度生成 | `verified` |
+| `audio-tone-wav-3s` | 3秒、48kHz、stereo、左右別周波数 | 波形、チャンネル処理 | 都度生成 | `verified` |
+| `image-color-bars-png` | 320×180、RGB | 画像読込、色、16:9 | 都度生成 | `verified` |
+| `image-seek-grid-png` | 320×180、RGB | 合成座標、比率 | 都度生成 | `verified` |
+| `image-alpha-gradient-png` | 320×180、RGBA、alpha勾配 | 透明度読込・合成 | 都度生成 | `verified` |
+| `video-mp4-h264-aac-cfr-720p-10s` | H.264/AAC、720p/30fps/CFR、10秒 | 最小読込、再生、同期 | ローカル | `planned` |
+| `video-mp4-h264-aac-cfr-1080p-30s` | H.264/AAC、1080p/30fps/CFR、30秒 | Issue #2完了条件、書出し | ローカル | `planned` |
+| `video-mp4-h264-aac-cfr-1080p-60s` | H.264/AAC、1080p/30fps/CFR、60秒 | メモリ、長めのシーク | ローカル | `planned` |
+| `video-mp4-h264-aac-vfr-1080p-30s` | H.264/AAC、1080p/VFR、30秒 | PTS、シーク、CFR変換 | ローカル | `planned` |
+| `video-mp4-h264-cfr-720p-10s-no-audio` | H.264、720p/30fps/CFR、音声なし | 映像だけの正常入力 | ローカル | `planned` |
+| `video-iphone-physical-avc-vfr-silent` | iPhone実機AVC、無音 | 回転、VFR、メタデータ | 非公開ローカル | `planned` |
+| `video-iphone-physical-avc-vfr-av-sync` | iPhone実機AVC、管理された基準音 | 実機A/V同期 | 非公開ローカル | `planned` |
+| `video-iphone-physical-hevc-hdr-silent` | iPhone実機HEVC/HDR、無音 | 非対応・条件付きの負例 | 非公開ローカル | `planned` |
+| `video-webm-vp8-opus-720p-10s` | VP8/Opus、720p/30fps、10秒 | 非MP4比較経路 | ローカル | `planned` |
+| `video-webm-vp9-opus-720p-10s` | VP9/Opus、720p/30fps、10秒 | 非MP4比較経路 | ローカル | `planned` |
+| `audio-mp3-cbr-3s` | CBR、3秒 | duration解析 | ローカル | `planned` |
+| `audio-mp3-vbr-30s` | VBR、30秒 | duration、シーク | ローカル | `planned` |
+| `image-jpeg-orientation-set` | 320×180、Orientation 1/6/8 | EXIF回転、メタデータ | ローカル | `planned` |
+| `negative-mp4-truncated` | 基本MP4の末尾を切断 | 破損入力のエラー | ローカル | `planned` |
+| `negative-fake-extension-mp4` | PNG内容を`.mp4`名で提示 | 内容と拡張子の不一致 | ローカル | `planned` |
 
 MP4の映像にはフレーム番号ではなく、単純な時間マーカー、色変化、移動図形を使う。音声はこのリポジトリが生成する基準パルスまたは連続音を多重化する。フォント依存の文字描画は再現性を下げるため必須にしない。
 
-「iPhone相当の合成ファイル」と「iPhone実機で撮影したファイル」は別IDにする。合成ファイルだけで実機検証済みとはしない。実機撮影時は、無地の壁や自作パターンだけを写し、音声を無効化できる場合は無効化し、撮影場所を推測できる対象を避ける。
+「iPhone相当の合成ファイル」と「iPhone実機で撮影したファイル」は別IDにする。合成ファイルだけで実機検証済みとはしない。実機撮影時は、無地の壁や自作パターンだけを写し、撮影場所を推測できる対象を避ける。
+
+回転・VFR・HDR・メタデータ確認用は無音の`video-iphone-physical-avc-vfr-silent`または`video-iphone-physical-hevc-hdr-silent`とする。A/V同期は、管理された環境で自作の映像マーカーと基準音だけを収録した`video-iphone-physical-avc-vfr-av-sync`で測る。無音fixtureの結果でA/V同期を`pass`にしてはならない。
 
 ## 5. 標準fixtureの再生成
 
-Python 3の標準ライブラリだけで、WAV 3件とPNG 2件を生成できる。パッケージ追加、FFmpeg、ネットワークアクセスは不要である。
+Python 3の標準ライブラリだけで、WAV 3件とPNG 3件（RGB 2件、RGBA 1件）を生成できる。パッケージ追加、FFmpeg、ネットワークアクセスは不要である。
 
 ```bash
 python3 scripts/generate_test_fixtures.py --check
@@ -77,13 +97,19 @@ python3 scripts/generate_test_fixtures.py --output-dir test/fixtures/generated
 - 既存内容が異なるファイルやシンボリックリンクを上書きしない。
 - 生成物は `.gitignore` の対象であり、通常のレビュー差分へ入らない。
 
-生成パターンには第三者素材を含めない。ただし、このリポジトリ自体のライセンスが未設定であるため、manifestの`license`は`NOASSERTION`、用途はDOGAGAのローカルテスト、再配布は禁止として記録する。将来、生成fixtureを配布またはCI間で共有する場合は、リポジトリ管理者が適用ライセンスを明示してから`rights-reviewed`へ進める。
+生成パターンには第三者素材を含めない。標準生成器とその生成物の権利者・許諾主体は、現時点では`yo4e（DOGAGAリポジトリ管理者・生成器の提供者）`としてmanifestへ明記する。yo4eは次のDOGAGA開発内利用を許可する。
+
+- 開発者端末でのローカルテスト
+- 同一DOGAGAプロジェクトのCIで生成し、その実行のartifactとして受け渡すこと
+- DOGAGA共同開発者間で、検証に必要な生成物を受け渡すこと
+
+リポジトリと生成物へ適用する公開ライセンスはまだ選択していないため、`rights.license.status`は`not-selected`、`identifier`は`null`とする。これはライセンス名としての`NOASSERTION`ではない。公開配布、一般向けダウンロード、他プロジェクトへの再配布は`rights.permissions.publicRedistribution: pending`とし、リポジトリのライセンス決定後に再審査する。CI artifactも公開配布場所として恒久保存せず、DOGAGA開発の必要範囲だけで扱う。
 
 アルゴリズムを変更するとSHA-256が変わる。変更時は`--report`の結果を確認し、`generatorVersion`を上げ、目的に照らしたレビュー後にmanifestを更新する。
 
 ### 映像・圧縮音声fixture
 
-H.264、AAC、VP9、Opus、MP3、JPEGはエンコーダーと設定が結果へ影響するため、この標準生成器の対象外とする。Issue #2または#4で生成するときは、次を追加記録する。
+H.264、AAC、VP8、VP9、Opus、MP3、JPEGはエンコーダーと設定が結果へ影響するため、この標準生成器の対象外とする。Issue #2または#4で生成するときは、次を追加記録する。
 
 - 生成ツール名、完全なバージョン、入手元
 - 実行したコマンドまたは設定ファイル
@@ -96,7 +122,7 @@ H.264、AAC、VP9、Opus、MP3、JPEGはエンコーダーと設定が結果へ�
 
 ## 6. 権利・個人情報チェック
 
-素材を`rights-reviewed`へ進める前に、担当者が次を確認する。
+素材の`rights.reviewStatus`を`reviewed`へ進める前に、担当者が次を確認する。
 
 ### 権利
 
@@ -116,7 +142,7 @@ H.264、AAC、VP9、Opus、MP3、JPEGはエンコーダーと設定が結果へ�
 - [ ] 不要メタデータを除去し、除去後のファイルを再解析した
 - [ ] ファイル名とログにも個人名、場所、端末名を残していない
 
-一つでも不明なら`planned`または`rejected`のままにし、Git、CI、外部保管先へ移さない。
+一つでも不明なら`rights.reviewStatus`を`pending`または`rejected`のままにし、許可状態が`pending`のGit、CI、共同開発者、外部保管先へ移さない。準備不成立なら`preparationStatus`も`planned`または`rejected`とする。
 
 ## 7. ライセンス記録テンプレート
 
@@ -124,41 +150,39 @@ H.264、AAC、VP9、Opus、MP3、JPEGはエンコーダーと設定が結果へ�
 
 ```yaml
 id: 一意で個人名や機密情報を含まない素材ID
-file_name: ローカルでの非個人的なファイル名
-sha256: 64桁のSHA-256
-status: planned | rights-reviewed | measured | rejected
-source:
-  type: self-generated | public-domain | licensed-third-party | physical-device
-  title: 素材名
-  creator: 作者または権利者
-  original_url: ライセンス原文へ到達できるURL
-  acquired_at: YYYY-MM-DD
-license:
-  name: SPDX識別子または正式名称
-  version: 版
-  commercial_use: allowed | prohibited | unknown
-  modification: allowed | prohibited | unknown
-  redistribution: allowed | prohibited | unknown
-  attribution: 表示内容またはnone
-  evidence: 保存した原文、スクリーンショット、Issueへの参照
-changes:
-  - 切り出し、再エンコード、メタデータ除去等
+fileName: ローカルでの非個人的なファイル名、未準備ならnull
+preparationStatus: planned | generated | verified | rejected
+mediaType: MIME type
+purpose:
+  - 検証目的
+properties:
+  durationSeconds: 数値または条件
+rights:
+  origin: self-generated | public-domain | licensed-third-party | physical-device と出所詳細
+  thirdPartyContent: true | false
+  rightsHolder: 権利者または許諾主体の明示名
+  license:
+    status: not-selected | selected
+    identifier: SPDX識別子、正式名称、または未選択時null
+  reviewStatus: pending | reviewed | rejected
+  reviewedBy: reviewed時のGitHubユーザー名
+  reviewedAt: reviewed時のYYYY-MM-DD
+  permissions:
+    localDevelopment: allowed | prohibited | pending
+    ciArtifactTransfer: allowed | prohibited | pending
+    collaboratorTransfer: allowed | prohibited | pending
+    publicRedistribution: allowed | prohibited | pending
+  basis: 許諾根拠、証跡、未解決事項
 privacy:
   people: none | consent-recorded | unknown
-  voice: none | consent-recorded | unknown
+  voices: none | consent-recorded | unknown
+  logos: none | authorized | unknown
   location: none | removed | unknown
-  metadata_checked_with: ツール名と完全なバージョン
-  metadata_removed: true | false
+  metadata: none | removed | unknown
 storage:
-  class: generated | local-only | restricted-external
-  location_id: 秘密情報を含まない保管先ID
-verification:
-  generated_with: ツールと完全なバージョン
-  media_inspection: 実行コマンドまたはログ参照
-  browser_measurements: []
-reviewed_by: GitHubユーザー名
-reviewed_at: YYYY-MM-DD
-notes: 未解決事項
+  class: generated | local-only | private-local-only | restricted-external
+  locationId: 秘密情報を含まない保管先ID、未配置ならnull
+measurements: []
 ```
 
 URLだけではライセンス変更や配布終了へ耐えない。許される範囲でライセンス原文または証跡を保管し、取得日時点の条件を追跡する。アクセス制限された原本のURL、署名付きURL、個人名は公開manifestへ書かない。
@@ -198,25 +222,30 @@ DOGAGA_TEST_MEDIA_DIR/
 
 ## 10. Issue #2/#4での記録方法
 
-実測結果は素材台帳を直接上書きするのではなく、一回の環境・実行につき一レコードを追加する。
+実測結果は準備状態や権利審査状態を上書きせず、対象fixtureの`measurements[]`へ一回の環境・実行につき一レコードを追加する。
 
 ```json
 {
-  "fixtureId": "video-mp4-h264-aac-cfr-1080p-30s",
-  "fixtureSha256": "...",
-  "testedAt": "2026-07-17T00:00:00+09:00",
-  "tester": "GitHubユーザー名",
   "environment": {
-    "os": "macOS 具体的なバージョン",
-    "browser": "Google Chrome 完全なバージョン",
+    "os": "macOS",
+    "osVersion": "具体的なバージョン",
+    "browser": "Google Chrome",
+    "browserVersion": "完全なバージョン",
     "hardware": "必要な範囲のCPU/GPU/メモリ"
   },
-  "operations": {
-    "load": "pass | fail | not-run",
-    "playback": "pass | fail | not-run",
-    "seek": "pass | fail | not-run",
-    "audioSync": "pass | fail | not-run",
-    "export": "pass | fail | not-run"
+  "status": "completed",
+  "fixtureSha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "measuredAt": "2026-07-17T00:00:00+09:00",
+  "measuredBy": "GitHubユーザー名",
+  "results": {
+    "importRead": "pass",
+    "htmlMediaElementPlayback": "pass",
+    "seek": "pass",
+    "waveform": "pass",
+    "webCodecsDecode": "not-run",
+    "encode": "not-run",
+    "mux": "not-run",
+    "reImport": "not-run"
   },
   "metrics": {
     "seekErrorUs": null,
@@ -229,13 +258,13 @@ DOGAGA_TEST_MEDIA_DIR/
 }
 ```
 
-`seekErrorUs`と`audioSyncErrorUs`は整数マイクロ秒で記録し、未測定時は`null`とする。`not-run`や`null`を成功値で埋めない。公式仕様、`isConfigSupported()`、`canPlayType()`等の自動判定、実ブラウザでの操作結果は別欄に記録する。あるOS・ブラウザの`measured`を別環境へ一般化しない。
+例の`fixtureSha256`は形式を示すダミー値なので、実ファイル全体のSHA-256へ置き換える。操作別結果は`pass | fail | not-run | inconclusive | not-applicable`のいずれかとする。`seekErrorUs`と`audioSyncErrorUs`は整数マイクロ秒で記録し、未測定時は`null`とする。`not-run`や`null`を成功値で埋めない。公式仕様、`isConfigSupported()`、`canPlayType()`等の自動判定、実ブラウザでの操作結果は別欄に記録する。あるOS・ブラウザの`status: completed`を別環境へ一般化しない。
 
-ここで使う`fixtureId`はテスト素材台帳内のIDであり、`.dogaga`プロジェクト内の`asset.id`とは別の名前空間である。`fixtureSha256`はファイル全体のSHA-256で、再リンク候補用の`asset.fingerprint`（`sha256-sampled-v1`候補）ではない。また、fixtureの`status`は素材準備・検証の進行状態であり、Projectの`asset.linkState`（`unchecked` / `available` / `missing`）とは関連付けない。
+外部ログで使う`fixtureId`はテスト素材台帳内のIDであり、`.dogaga`プロジェクト内の`asset.id`とは別の名前空間である。`fixtureSha256`はファイル全体のSHA-256であり、再リンク候補用の`asset.fingerprint`の拡張可能な`method` / `value`とは別の記録である。同じアルゴリズムだと仮定しない。fixtureの`preparationStatus`、`rights.reviewStatus`、`measurements[].status`はいずれもProjectの`asset.linkState`（`unchecked` / `available` / `missing`）とは関連付けない。
 
 ## 11. 今回の検証済み範囲と未解決事項
 
-この方針の追加時点で確認したのは、標準生成器によるWAV/PNGの決定的な生成、SHA-256、チャンク制限だけである。ブラウザでの読み込み、シーク、音ズレ、書き出し、macOS/Windows差は実機未検証であり、Issue #2/#4で測定する。
+この方針の追加時点で確認したのは、標準生成器によるWAV 3件とPNG 3件の決定的な生成、SHA-256、チャンク制限、およびplanned fixtureを含むmanifest全21件の最低構造だけである。ブラウザでの読み込み、シーク、音ズレ、書き出し、macOS/Windows差は実機未検証であり、Issue #2/#4で測定する。
 
 未解決事項:
 
