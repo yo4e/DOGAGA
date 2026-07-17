@@ -538,6 +538,7 @@
     },
     "AudioFades": {
       "type": "object",
+      "description": "AudioClip先頭・末尾の線形振幅フェード。各値と合計がClipのdurationUs以下であることは意味検証で確認する。",
       "additionalProperties": false,
       "required": [
         "fadeInUs",
@@ -545,10 +546,12 @@
       ],
       "properties": {
         "fadeInUs": {
-          "$ref": "#/$defs/TimeUs"
+          "$ref": "#/$defs/TimeUs",
+          "description": "Clip先頭のフェードイン長。0はフェードなし。"
         },
         "fadeOutUs": {
-          "$ref": "#/$defs/TimeUs"
+          "$ref": "#/$defs/TimeUs",
+          "description": "Clip末尾のフェードアウト長。0はフェードなし。"
         }
       }
     },

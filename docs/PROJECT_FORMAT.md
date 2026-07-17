@@ -215,6 +215,16 @@ IDはユーザーへ意味を見せない不透明な文字列とし、Project�
 
 動画・音声Assetでは、前節の有理数式で素材消費範囲を検証する。画像Assetには時間方向の素材尺がないため、この範囲検証を適用せず、`sourceStartUs: 0` と `playbackRate: 1/1` を要求する。画像の表示時間はVideoClipの `durationUs` だけで表す。
 
+AudioClipの `fades.fadeInUs` と `fades.fadeOutUs` は、Clipの先頭と末尾に適用する線形振幅フェードの長さである。`0` はフェードなしを表す。
+
+- `0 <= fadeInUs <= durationUs`
+- `0 <= fadeOutUs <= durationUs`
+- v0.1では `fadeInUs + fadeOutUs <= durationUs` を必須とし、両フェードを重ねない
+- フェードイン区間はClip先頭から公称ゲインまで、フェードアウト区間は公称ゲインからClip末尾の無音までを線形振幅で補間する
+- `gainDb` と `muted` はフェード包絡とは別に適用し、プレビューと書き出しで同じ合成順を使う
+
+クロスフィールドの大小関係はJSON Schemaだけでは表せないため、保存前と読み込み時の意味検証で確認する。
+
 動画・画像を置くVideoClipは、静的な `transform` も持つ。
 
 - `position`: キャンバス左上を `(0, 0)` とするピクセル座標。変換後の表示領域の中心を置く位置
@@ -296,11 +306,12 @@ JSON Schema検証に通った後、少なくとも次を検証する。
 5. `startUs + durationUs` が安全な整数で、キャンバス範囲内にある
 6. `playbackRate` が約分済みであり、動画・音声では `sourceStartUs` と有理数で計算した正確な素材消費範囲が素材尺を超えず、画像では `sourceStartUs: 0` と `playbackRate: 1/1` である
 7. VideoClipのcrop左右合計・上下合計がそれぞれ1未満であり、timedのTextClipがキャンバス範囲内にある
-8. Transitionがvideo Trackだけにあり、kindに必要な参照形状、Clipの連続順、重なり、素材ハンドル、duration条件を満たす
-9. LyricDocumentの `line.order` とTrack内の並び順が重複しない
-10. `createdAt <= updatedAt` である
-11. `frameRate` と `playbackRate` の分母が0でない
-12. `exportPreset` が対象ブラウザで使えるかは別途能力判定する
+8. AudioClipの各fadeがClip長以下で、`fadeInUs + fadeOutUs <= durationUs` を満たす
+9. Transitionがvideo Trackだけにあり、kindに必要な参照形状、Clipの連続順、重なり、素材ハンドル、duration条件を満たす
+10. LyricDocumentの `line.order` とTrack内の並び順が重複しない
+11. `createdAt <= updatedAt` である
+12. `frameRate` と `playbackRate` の分母が0でない
+13. `exportPreset` が対象ブラウザで使えるかは別途能力判定する
 
 エラーはユーザー向けと開発者向けを分ける。例:
 
