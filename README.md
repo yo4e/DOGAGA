@@ -13,6 +13,7 @@ Canva程度の入りやすさを保ちながら、楽曲波形、歌詞同期、
 - [権利・データ取扱方針](docs/RIGHTS_AND_DATA_POLICY.md)
 - [テスト素材方針](docs/TEST_MEDIA_POLICY.md)
 - [開発ロードマップ](docs/DEVELOPMENT_ROADMAP.md)
+- [ブラウザ・コーデック対応表と検証計画](docs/CODEC_SUPPORT_MATRIX.md)
 - [Desktop-firstの設計判断](docs/ADR-001-DESKTOP-FIRST.md)
 - [日本語を正本とする設計判断](docs/ADR-002-JAPANESE-FIRST.md)
 - [日本語UI用語集・文体ガイド](docs/JAPANESE_UI_GLOSSARY.md)
