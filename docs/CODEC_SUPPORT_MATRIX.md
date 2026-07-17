@@ -4,7 +4,7 @@
 - 更新日: 2026-07-17
 - 対象Issue: [#4](https://github.com/yo4e/DOGAGA/issues/4)
 - 引き継ぎ先: [#2](https://github.com/yo4e/DOGAGA/issues/2)
-- 依存する正本: PR #12の `docs/PROJECT_FORMAT.md`、PR #13の `test/fixtures/manifest.json`
+- 依存する正本: `docs/PROJECT_FORMAT.md`、`docs/JAPANESE_UI_GLOSSARY.md`、`test/fixtures/manifest.json`
 
 ## 0. 現在の結論
 
@@ -21,7 +21,7 @@ Phase 0で最初に成立性を確認する範囲は、次のように暫定決�
 
 ここでいう「候補」「対象外」は製品スコープ上の分類であり、ブラウザの技術的な「対応」「非対応」とは別である。第一・第二基準環境の実測を終えるまで、リリース時の対応形式として確定しない。
 
-このPRはPR #12・#13が未マージの間は依存先の仕様を複製して確定しない。両PRのマージ後に本PRをrebaseし、時間モデルとfixture IDを正本に再照合することをマージゲートとする。
+時間モデル、ユーザー向け用語、fixture IDは本書で複製して独自決定せず、上記の正本を参照する。正本の変更時は、Section 11.1の項目を再照合する。
 
 ## 1. 目的と範囲
 
@@ -58,7 +58,7 @@ Phase 0で最初に成立性を確認する範囲は、次のように暫定決�
 
 APIが `supported: true` を返しただけでは「対応」にしない。逆に、MVP初期保証の対象外という製品判断だけで「非対応」にもしない。対応状態は、環境と素材条件ごとの実測結果として管理する。HTMLMediaElementでの再生だけが成功した場合や、WebCodecs decodeだけが成功して書き出しが失敗した場合を、集約時に「対応」へ丸めない。
 
-この文書と診断記録では技術・調査上の状態を **未検証** と記録し、通常UIではPR #11の採用語に合わせて **未確認** と表示する。両者は「必要な確認が済んでいない」という同じ未確定状態の用途別表記であり、いずれも「非対応」へ自動変換しない。
+この文書と診断記録では技術・調査上の状態を **未検証** と記録し、通常UIでは `docs/JAPANESE_UI_GLOSSARY.md` の採用語に合わせて **未確認** と表示する。両者は「必要な確認が済んでいない」という同じ未確定状態の用途別表記であり、いずれも「非対応」へ自動変換しない。
 
 ### 2.2 根拠レベル
 
@@ -216,7 +216,7 @@ const audioDecoderClaim = await AudioDecoder.isConfigSupported(
 
 ### 6.2 必須ケース
 
-数値は最初の検証条件であり、対応上限を保証する値ではない。素材IDはPR #13の `test/fixtures/manifest.json` を正本とし、この文書独自の別IDを作らない。
+数値は最初の検証条件であり、対応上限を保証する値ではない。素材IDは `test/fixtures/manifest.json` を正本とし、この文書独自の別IDを作らない。
 
 | 素材ID | 種別 | 条件 | 主な目的 | 優先度 |
 |---|---|---|---|---|
@@ -244,7 +244,7 @@ H.264は最低でも実際に採用候補となるprofileごとに素材を分�
 
 `test/fixtures/manifest.json` を素材ID、準備状態、権利確認、保管場所、生成・取得手順、SHA-256、byte数の正本とする。本書は検証経路と結果の記録方法を定義し、素材台帳を別形式で複製しない。
 
-manifestのSHA-256はfixture全体の同一性確認用であり、Projectの `Asset.fingerprint.method` を定義するものではない。PR #12でfingerprint methodが未確定の間は、本書から仮のmethod名を割り当てない。
+manifestのSHA-256はfixture全体の同一性確認用であり、Projectの `Asset.fingerprint.method` を定義するものではない。`docs/PROJECT_FORMAT.md` でfingerprint methodが未確定の間は、本書から仮のmethod名を割り当てない。
 
 実機検証の前に、次をすべて満たすことを確認する。
 
@@ -437,7 +437,7 @@ ffmpeg.wasmはこの時点で導入しない。次のいずれかが実測で必
 
 Issue #2では、次の順でこの表を実測結果へ更新する。
 
-1. PR #13の `test/fixtures/manifest.json` を正本とし、必須素材の準備・権利確認・SHA-256照合を完了する。
+1. `test/fixtures/manifest.json` を正本とし、必須素材の準備・権利確認・SHA-256照合を完了する。
 2. MP4 / WebMのtrack metadataからexact decoder configを作る最小parser候補を比較する。
 3. 能力判定のraw JSONを採取するdiagnosticsを作る。API結果を製品対応と表示しない。
 4. 第一入力候補について、ローカルMP4選択、表示、再生、シーク、日本語エラーまでの縦一本を実装する。
@@ -449,15 +449,16 @@ Issue #2では、次の順でこの表を実測結果へ更新する。
 
 Issue #4の完了条件である第一・第二基準環境の主要素材検証は、この文書作成時点では未達である。実測後にIssue #2へ結果をコメントし、対応表の該当行を更新する。未実施の項目を完了扱いにしない。
 
-### 11.1 依存PRのマージゲート
+### 11.1 正本との再照合
 
-本PRは、PR #12・#13がマージされた後にrebaseし、次の再照合を終えるまでマージしない。この文書だけで依存先の仕様を固定しない。
+本書は、プロジェクト形式とテスト素材方針が入ったmain commit `f1847c5` へrebaseしたうえで、次を再照合した。今後いずれかの正本を変更する場合も、同じ項目を確認する。
 
-- PR #12の `playbackRate` とsource時間の式、計算中の有理数処理、丸め境界に、本書の時間・seek記録が従っている。
-- PR #12のfingerprint方式を前提とする記述がある場合、未定義のmethodを固定していない。
-- PR #12の `audioClip` / asset参照と、A/V同期fixtureおよび診断記録の対象が矛盾していない。
-- PR #12のVFR sample timestamp、時間単位、丸め規則に、本書の計測とCFR出力候補の記述が従っている。
-- 本書の必須ケースとResult内の素材IDが、PR #13のmanifestに存在し、削除・改名済みIDを参照していない。
+- `docs/PROJECT_FORMAT.md` の `playbackRate` とsource時間の式、計算中の有理数処理、丸め境界に、本書の時間・seek記録が従っている。
+- Projectのfingerprint方式を前提とする記述が、未定義のmethodを固定していない。
+- Projectの `audioClipId` / asset参照と、A/V同期fixtureおよび診断記録の対象が矛盾していない。
+- VFR sample timestamp、時間単位、丸め規則に、本書の計測とCFR出力候補の記述が従っている。
+- 本書の必須ケースとResult内の素材IDが、schemaVersion 2の `test/fixtures/manifest.json` に存在し、削除・改名済みIDを参照していない。
+- 通常UIの用語が `docs/JAPANESE_UI_GLOSSARY.md` に従い、技術記録の「未検証」をUIで「未確認」と表示する。
 
 ## 12. 未解決事項
 
