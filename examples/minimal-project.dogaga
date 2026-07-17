@@ -1,0 +1,244 @@
+{
+  "version": "0.1.0",
+  "id": "project_minimal_001",
+  "name": "最小サンプル",
+  "description": "動画1クリップ、音声1クリップ、同期済み歌詞1行を持つサンプル",
+  "createdAt": "2026-07-17T00:00:00Z",
+  "updatedAt": "2026-07-17T00:00:00Z",
+  "createdWith": {
+    "name": "DOGAGA",
+    "version": "0.0.0-dev"
+  },
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "frameRate": {
+      "numerator": 30,
+      "denominator": 1
+    },
+    "durationUs": 10000000,
+    "backgroundColor": "#000000FF",
+    "extensions": {}
+  },
+  "assets": [
+    {
+      "id": "asset_video_001",
+      "kind": "video",
+      "mimeType": "video/mp4",
+      "linkState": "unchecked",
+      "relinkHints": {
+        "originalFileName": "sample-video.mp4",
+        "byteLength": 2457600,
+        "lastModifiedMs": 1784246400000
+      },
+      "metadata": {
+        "durationUs": 10000000,
+        "width": 1920,
+        "height": 1080,
+        "nominalFrameRate": {
+          "numerator": 30,
+          "denominator": 1
+        },
+        "container": "mp4",
+        "videoCodec": "avc1.640028",
+        "audioCodec": "mp4a.40.2",
+        "hasAudio": true,
+        "rotationDegrees": 0
+      },
+      "extensions": {}
+    },
+    {
+      "id": "asset_audio_001",
+      "kind": "audio",
+      "mimeType": "audio/wav",
+      "linkState": "missing",
+      "relinkHints": {
+        "originalFileName": "sample-audio.wav",
+        "byteLength": 1920044,
+        "lastModifiedMs": 1784246400000
+      },
+      "metadata": {
+        "durationUs": 10000000,
+        "container": "wav",
+        "audioCodec": "pcm_s16le",
+        "sampleRate": 48000,
+        "channels": 2,
+        "hasAudio": true
+      },
+      "extensions": {}
+    }
+  ],
+  "tracks": [
+    {
+      "id": "track_video_001",
+      "kind": "video",
+      "name": "映像",
+      "order": 0,
+      "locked": false,
+      "muted": false,
+      "clips": [
+        {
+          "id": "clip_video_001",
+          "type": "video",
+          "order": 0,
+          "assetId": "asset_video_001",
+          "startUs": 0,
+          "durationUs": 10000000,
+          "sourceStartUs": 0,
+          "playbackRate": {
+            "numerator": 1,
+            "denominator": 1
+          },
+          "opacity": 1,
+          "extensions": {}
+        }
+      ],
+      "transitions": [],
+      "extensions": {}
+    },
+    {
+      "id": "track_audio_001",
+      "kind": "audio",
+      "name": "メイン楽曲",
+      "order": 1,
+      "locked": false,
+      "muted": false,
+      "clips": [
+        {
+          "id": "clip_audio_001",
+          "type": "audio",
+          "order": 0,
+          "assetId": "asset_audio_001",
+          "startUs": 0,
+          "durationUs": 10000000,
+          "sourceStartUs": 0,
+          "playbackRate": {
+            "numerator": 1,
+            "denominator": 1
+          },
+          "gainDb": 0,
+          "muted": false,
+          "fades": {
+            "fadeInUs": 0,
+            "fadeOutUs": 250000
+          },
+          "extensions": {}
+        }
+      ],
+      "transitions": [],
+      "extensions": {}
+    },
+    {
+      "id": "track_text_001",
+      "kind": "text",
+      "name": "歌詞",
+      "order": 2,
+      "locked": false,
+      "muted": false,
+      "clips": [
+        {
+          "id": "clip_text_001",
+          "type": "text",
+          "order": 0,
+          "role": "lyric",
+          "text": "風のなかで歌う",
+          "timing": {
+            "status": "timed",
+            "startUs": 1000000,
+            "durationUs": 3000000
+          },
+          "styleId": "style_lyric_001",
+          "lyricLineRef": {
+            "documentId": "lyrics_001",
+            "lineId": "lyric_line_001"
+          },
+          "extensions": {}
+        }
+      ],
+      "transitions": [],
+      "extensions": {}
+    }
+  ],
+  "lyricDocuments": [
+    {
+      "id": "lyrics_001",
+      "sourceText": "風のなかで歌う",
+      "lines": [
+        {
+          "id": "lyric_line_001",
+          "order": 0,
+          "text": "風のなかで歌う",
+          "extensions": {}
+        }
+      ],
+      "syncSettings": {
+        "audioAssetId": "asset_audio_001",
+        "latencyOffsetUs": -80000,
+        "endGapUs": 50000,
+        "lastActiveLineId": "lyric_line_001"
+      },
+      "extensions": {}
+    }
+  ],
+  "markers": [
+    {
+      "id": "marker_001",
+      "kind": "cue",
+      "timeUs": 1000000,
+      "label": "歌い出し",
+      "color": "#FFCC00FF",
+      "extensions": {}
+    }
+  ],
+  "styles": [
+    {
+      "id": "style_lyric_001",
+      "kind": "text",
+      "name": "歌詞・中央",
+      "fontFamily": "sans-serif",
+      "fontSizePx": 72,
+      "fontWeight": 700,
+      "fontStyle": "normal",
+      "color": "#FFFFFFFF",
+      "backgroundColor": null,
+      "stroke": {
+        "color": "#000000FF",
+        "widthPx": 4
+      },
+      "shadow": {
+        "color": "#00000080",
+        "offsetXPx": 0,
+        "offsetYPx": 4,
+        "blurPx": 8
+      },
+      "textAlign": "center",
+      "writingMode": "horizontal-tb",
+      "lineHeight": 1.2,
+      "letterSpacingPx": 0,
+      "extensions": {}
+    }
+  ],
+  "exportPreset": {
+    "name": "YouTube 1080p 30fps（暫定）",
+    "target": "youtube",
+    "container": "mp4",
+    "width": 1920,
+    "height": 1080,
+    "frameRate": {
+      "numerator": 30,
+      "denominator": 1
+    },
+    "video": {
+      "codec": "avc1.640028",
+      "bitrate": 12000000
+    },
+    "audio": {
+      "codec": "mp4a.40.2",
+      "bitrate": 192000,
+      "sampleRate": 48000,
+      "channels": 2
+    },
+    "extensions": {}
+  },
+  "extensions": {}
+}
