@@ -1,0 +1,2 @@
+# テスト素材はスクリプトから再生成し、生成物をGitへ含めない。
+/test/fixtures/generated/

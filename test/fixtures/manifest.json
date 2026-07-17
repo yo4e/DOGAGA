@@ -1,0 +1,162 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-07-17",
+  "generatorVersion": "dogaga-builtin-fixtures-v1",
+  "fixtures": [
+    {
+      "id": "audio-silence-wav-1s",
+      "fileName": "audio-silence-1s-mono-48000.wav",
+      "status": "generation-verified",
+      "mediaType": "audio/wav",
+      "purpose": ["無音入力", "duration解析", "モノラルPCM"],
+      "properties": {"durationSeconds": 1, "sampleRate": 48000, "channels": 1, "sampleFormat": "s16le"},
+      "generation": {"tool": "dogaga-builtin-fixtures-v1", "networkAccess": false},
+      "expected": {"bytes": 96044, "sha256": "0a8f76d89c709043814cb74f331a4578d17ff61256303bd0019a263d053f86e8"},
+      "rights": {"origin": "このリポジトリの生成スクリプト", "thirdPartyContent": false, "license": "NOASSERTION", "usageScope": "DOGAGAのローカルテスト", "redistribution": "リポジトリのライセンス未設定のため生成物を再配布しない"},
+      "privacy": {"people": false, "voices": false, "logos": false, "location": false, "metadata": false},
+      "measurements": []
+    },
+    {
+      "id": "audio-sync-pulses-wav-3s",
+      "fileName": "audio-sync-pulses-3s-stereo-48000.wav",
+      "status": "generation-verified",
+      "mediaType": "audio/wav",
+      "purpose": ["同期基準パルス", "ステレオPCM", "シーク位置確認"],
+      "properties": {"durationSeconds": 3, "sampleRate": 48000, "channels": 2, "sampleFormat": "s16le", "pulseSeconds": [0.5, 1.5, 2.5]},
+      "generation": {"tool": "dogaga-builtin-fixtures-v1", "networkAccess": false},
+      "expected": {"bytes": 576044, "sha256": "bd7970bca12520d2052dd8827d9e3b19dbb24920f8fdde7c408f659cdaab7723"},
+      "rights": {"origin": "このリポジトリの生成スクリプト", "thirdPartyContent": false, "license": "NOASSERTION", "usageScope": "DOGAGAのローカルテスト", "redistribution": "リポジトリのライセンス未設定のため生成物を再配布しない"},
+      "privacy": {"people": false, "voices": false, "logos": false, "location": false, "metadata": false},
+      "measurements": []
+    },
+    {
+      "id": "audio-tone-wav-3s",
+      "fileName": "audio-tone-3s-stereo-48000.wav",
+      "status": "generation-verified",
+      "mediaType": "audio/wav",
+      "purpose": ["連続音", "左右チャンネル識別", "波形生成"],
+      "properties": {"durationSeconds": 3, "sampleRate": 48000, "channels": 2, "sampleFormat": "s16le", "leftFrequencyHz": 440, "rightFrequencyHz": 880, "waveform": "square"},
+      "generation": {"tool": "dogaga-builtin-fixtures-v1", "networkAccess": false},
+      "expected": {"bytes": 576044, "sha256": "4f40c0cde2fb20dca06685e9b602fa464d52b6943e626889a70133af24a564c9"},
+      "rights": {"origin": "このリポジトリの生成スクリプト", "thirdPartyContent": false, "license": "NOASSERTION", "usageScope": "DOGAGAのローカルテスト", "redistribution": "リポジトリのライセンス未設定のため生成物を再配布しない"},
+      "privacy": {"people": false, "voices": false, "logos": false, "location": false, "metadata": false},
+      "measurements": []
+    },
+    {
+      "id": "image-color-bars-png",
+      "fileName": "image-color-bars-320x180.png",
+      "status": "generation-verified",
+      "mediaType": "image/png",
+      "purpose": ["PNG読み込み", "色確認", "16:9静止画"],
+      "properties": {"width": 320, "height": 180, "bitDepth": 8, "colorType": "RGB"},
+      "generation": {"tool": "dogaga-builtin-fixtures-v1", "networkAccess": false},
+      "expected": {"bytes": 173058, "sha256": "2642a3696cf70f3eb278ac8fb8c9f28c27baf08e0f773ebd5a347cb94c30056c"},
+      "rights": {"origin": "このリポジトリの生成スクリプト", "thirdPartyContent": false, "license": "NOASSERTION", "usageScope": "DOGAGAのローカルテスト", "redistribution": "リポジトリのライセンス未設定のため生成物を再配布しない"},
+      "privacy": {"people": false, "voices": false, "logos": false, "location": false, "metadata": false},
+      "measurements": []
+    },
+    {
+      "id": "image-seek-grid-png",
+      "fileName": "image-seek-grid-320x180.png",
+      "status": "generation-verified",
+      "mediaType": "image/png",
+      "purpose": ["PNG読み込み", "座標・アスペクト比確認", "合成確認"],
+      "properties": {"width": 320, "height": 180, "bitDepth": 8, "colorType": "RGB"},
+      "generation": {"tool": "dogaga-builtin-fixtures-v1", "networkAccess": false},
+      "expected": {"bytes": 173058, "sha256": "c0ae2a347eb8b7ceabcbab797c0f556486be495bdf58e61fab25f191dd85caa0"},
+      "rights": {"origin": "このリポジトリの生成スクリプト", "thirdPartyContent": false, "license": "NOASSERTION", "usageScope": "DOGAGAのローカルテスト", "redistribution": "リポジトリのライセンス未設定のため生成物を再配布しない"},
+      "privacy": {"people": false, "voices": false, "logos": false, "location": false, "metadata": false},
+      "measurements": []
+    },
+    {
+      "id": "video-mp4-h264-aac-cfr-720p-10s",
+      "fileName": null,
+      "status": "planned",
+      "mediaType": "video/mp4",
+      "purpose": ["H.264/AAC最小再生", "CFRシーク", "音声同期"],
+      "properties": {"durationSeconds": 10, "width": 1280, "height": 720, "frameRate": 30, "frameRateMode": "CFR", "videoCodec": "H.264", "audioCodec": "AAC"},
+      "storage": "local-only",
+      "measurements": []
+    },
+    {
+      "id": "video-mp4-h264-aac-cfr-1080p-30s",
+      "fileName": null,
+      "status": "planned",
+      "mediaType": "video/mp4",
+      "purpose": ["Issue #2完了条件", "1080p性能", "30秒書き出し"],
+      "properties": {"durationSeconds": 30, "width": 1920, "height": 1080, "frameRate": 30, "frameRateMode": "CFR", "videoCodec": "H.264", "audioCodec": "AAC"},
+      "storage": "local-only",
+      "measurements": []
+    },
+    {
+      "id": "video-mp4-h264-aac-cfr-1080p-60s",
+      "fileName": null,
+      "status": "planned",
+      "mediaType": "video/mp4",
+      "purpose": ["1分負荷", "長めのシーク", "メモリ傾向"],
+      "properties": {"durationSeconds": 60, "width": 1920, "height": 1080, "frameRate": 30, "frameRateMode": "CFR", "videoCodec": "H.264", "audioCodec": "AAC"},
+      "storage": "local-only",
+      "measurements": []
+    },
+    {
+      "id": "video-mp4-h264-aac-vfr-1080p-30s",
+      "fileName": null,
+      "status": "planned",
+      "mediaType": "video/mp4",
+      "purpose": ["VFRタイムスタンプ", "シーク", "CFR書き出し候補"],
+      "properties": {"durationSeconds": 30, "width": 1920, "height": 1080, "nominalFrameRate": 30, "frameRateMode": "VFR", "videoCodec": "H.264", "audioCodec": "AAC"},
+      "storage": "local-only",
+      "measurements": []
+    },
+    {
+      "id": "video-iphone-physical-vfr",
+      "fileName": null,
+      "status": "planned",
+      "mediaType": "video/quicktime-or-mp4",
+      "purpose": ["iPhone実機由来コンテナ", "VFR", "回転情報"],
+      "properties": {"durationSeconds": "10-30", "sourceDevice": "実機・機種とOSを測定時に記録", "frameRateMode": "要解析"},
+      "storage": "private-local-only",
+      "measurements": []
+    },
+    {
+      "id": "video-webm-vp9-opus-720p-10s",
+      "fileName": null,
+      "status": "planned",
+      "mediaType": "video/webm",
+      "purpose": ["WebM入力", "VP9/Opus", "非MP4経路"],
+      "properties": {"durationSeconds": 10, "width": 1280, "height": 720, "frameRate": 30, "videoCodec": "VP9", "audioCodec": "Opus"},
+      "storage": "local-only",
+      "measurements": []
+    },
+    {
+      "id": "audio-mp3-cbr-3s",
+      "fileName": null,
+      "status": "planned",
+      "mediaType": "audio/mpeg",
+      "purpose": ["MP3読み込み", "CBR", "duration解析"],
+      "properties": {"durationSeconds": 3, "sampleRate": 48000, "channels": 2, "bitRateMode": "CBR"},
+      "storage": "local-only",
+      "measurements": []
+    },
+    {
+      "id": "audio-mp3-vbr-30s",
+      "fileName": null,
+      "status": "planned",
+      "mediaType": "audio/mpeg",
+      "purpose": ["MP3読み込み", "VBR", "duration・シーク"],
+      "properties": {"durationSeconds": 30, "sampleRate": 48000, "channels": 2, "bitRateMode": "VBR"},
+      "storage": "local-only",
+      "measurements": []
+    },
+    {
+      "id": "image-jpeg-orientation-set",
+      "fileName": null,
+      "status": "planned",
+      "mediaType": "image/jpeg",
+      "purpose": ["JPEG読み込み", "EXIF Orientation", "メタデータ除去確認"],
+      "properties": {"width": 320, "height": 180, "orientationValues": [1, 6, 8], "personalMetadata": false},
+      "storage": "local-only",
+      "measurements": []
+    }
+  ]
+}
