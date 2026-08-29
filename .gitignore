@@ -1,2 +1,9 @@
 # テスト素材はスクリプトから再生成し、生成物をGitへ含めない。
 /test/fixtures/generated/
+
+# WebMCP Sprint app
+/node_modules/
+/dist/
+/.vite/
+/coverage/
+*.log
