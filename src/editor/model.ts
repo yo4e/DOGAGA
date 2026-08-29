@@ -54,7 +54,8 @@ export type EditorCommand =
   | { type: "trimClip"; clipId: ClipId; sourceInUs: number; sourceOutUs: number }
   | { type: "deleteClip"; clipId: ClipId }
   | { type: "setAudio"; audio: AudioClip | null }
-  | { type: "addTransition"; transition: Transition };
+  | { type: "addTransition"; transition: Transition }
+  | { type: "removeTransition"; transitionId: TransitionId };
 
 export function createEmptyEditorState(): EditorState {
   return {
@@ -71,9 +72,10 @@ export function clipDurationUs(clip: Pick<VideoClip, "sourceInUs" | "sourceOutUs
 }
 
 export function timelineDurationUs(state: EditorState): number {
-  const videoEnd = state.videoClips.at(-1)
-    ? state.videoClips.at(-1)!.timelineStartUs + clipDurationUs(state.videoClips.at(-1)!)
-    : 0;
+  const videoEnd = state.videoClips.reduce(
+    (max, clip) => Math.max(max, clip.timelineStartUs + clipDurationUs(clip)),
+    0,
+  );
   const audioEnd = state.audioClip
     ? state.audioClip.timelineStartUs + (state.audioClip.sourceOutUs - state.audioClip.sourceInUs)
     : 0;

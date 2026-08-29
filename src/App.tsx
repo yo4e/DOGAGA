@@ -4,6 +4,7 @@ import { EditorCommandError } from "./editor/executor";
 import type { AssetKind, VideoClip } from "./editor/model";
 import { MediaRuntime } from "./media/runtime";
 import { probeMediaFile } from "./media/probe";
+import { Preview } from "./preview/Preview";
 
 const US = 1_000_000;
 
@@ -87,7 +88,7 @@ function App() {
   };
 
   const trim = (clip: VideoClip, side: "in" | "out") => {
-    const step = 500_000;
+    const step = 100_000;
     const sourceInUs = side === "in" ? clip.sourceInUs + step : clip.sourceInUs;
     const sourceOutUs = side === "out" ? clip.sourceOutUs - step : clip.sourceOutUs;
     run(() => controller.execute({ type: "trimClip", clipId: clip.id, sourceInUs, sourceOutUs }));
@@ -96,9 +97,9 @@ function App() {
   return (
     <main className="app-shell">
       <header className="hero">
-        <p className="eyebrow">WebMCP Challenge Sprint</p>
+        <p className="eyebrow">Compact WebMCP Video Editor</p>
         <h1>DOGAGA</h1>
-        <p>人間とbrowser agentが、同じ動画編集stateとcommand executorを共同操作する最小版。</p>
+        <p>自分の動画をブラウザで編集し、その同じ編集stateをbrowser agentとも共有するコンパクトな動画編集アプリ。</p>
       </header>
 
       <section className="panel media-panel">
@@ -134,10 +135,7 @@ function App() {
 
       <section className="panel preview-panel">
         <h2>2. プレビュー</h2>
-        <div className="preview-placeholder">
-          <strong>Browser previewは次段</strong>
-          <p>ここから実動画のplay / pause / seek / audio sync / cross dissolveを接続する。</p>
-        </div>
+        <Preview state={state} controller={controller} runtime={runtime} />
       </section>
 
       <section className="panel timeline-panel">
@@ -145,6 +143,9 @@ function App() {
         <div className="timeline-track">
           {state.videoClips.map((clip, index) => {
             const asset = state.assets.find((item) => item.id === clip.assetId);
+            const transition = state.transitions.find(
+              (item) => item.fromClipId === clip.id && item.toClipId === state.videoClips[index + 1]?.id,
+            );
             return (
               <article className="clip-card" key={clip.id}>
                 <strong>{asset?.name ?? clip.assetId}</strong>
@@ -153,27 +154,37 @@ function App() {
                 <div className="button-row">
                   <button type="button" disabled={index === 0} onClick={() => run(() => controller.execute({ type: "moveClip", clipId: clip.id, toIndex: index - 1 }))}>←</button>
                   <button type="button" disabled={index === state.videoClips.length - 1} onClick={() => run(() => controller.execute({ type: "moveClip", clipId: clip.id, toIndex: index + 1 }))}>→</button>
-                  <button type="button" onClick={() => trim(clip, "in")}>In +0.5s</button>
-                  <button type="button" onClick={() => trim(clip, "out")}>Out -0.5s</button>
+                  <button type="button" onClick={() => trim(clip, "in")}>In +0.1s</button>
+                  <button type="button" onClick={() => trim(clip, "out")}>Out -0.1s</button>
                   <button type="button" onClick={() => run(() => controller.execute({ type: "deleteClip", clipId: clip.id }))}>削除</button>
                 </div>
                 {index < state.videoClips.length - 1 && (
-                  <button
-                    type="button"
-                    className="transition-button"
-                    onClick={() => run(() => controller.execute({
-                      type: "addTransition",
-                      transition: {
-                        id: newId("transition"),
-                        kind: "cross-dissolve",
-                        fromClipId: clip.id,
-                        toClipId: state.videoClips[index + 1].id,
-                        durationUs: 500_000,
-                      },
-                    }))}
-                  >
-                    次との境界に0.5s dissolve
-                  </button>
+                  transition ? (
+                    <button
+                      type="button"
+                      className="transition-button active"
+                      onClick={() => run(() => controller.execute({ type: "removeTransition", transitionId: transition.id }))}
+                    >
+                      0.5s dissolveを外す
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="transition-button"
+                      onClick={() => run(() => controller.execute({
+                        type: "addTransition",
+                        transition: {
+                          id: newId("transition"),
+                          kind: "cross-dissolve",
+                          fromClipId: clip.id,
+                          toClipId: state.videoClips[index + 1].id,
+                          durationUs: 500_000,
+                        },
+                      }))}
+                    >
+                      次との境界に0.5s dissolve
+                    </button>
+                  )
                 )}
               </article>
             );
@@ -184,6 +195,22 @@ function App() {
           <div className="audio-strip">
             <strong>Audio</strong>
             <span>{state.assets.find((asset) => asset.id === state.audioClip?.assetId)?.name}</span>
+            <label>
+              Start (s)
+              <input
+                type="number"
+                min="0"
+                step="0.1"
+                value={seconds(state.audioClip.timelineStartUs)}
+                onChange={(event) => run(() => controller.execute({
+                  type: "setAudio",
+                  audio: {
+                    ...state.audioClip!,
+                    timelineStartUs: Math.max(0, Math.round(Number(event.target.value) * US)),
+                  },
+                }))}
+              />
+            </label>
             <label>
               Volume
               <input
@@ -198,6 +225,7 @@ function App() {
                 }))}
               />
             </label>
+            <button type="button" onClick={() => run(() => controller.execute({ type: "setAudio", audio: null }))}>音源解除</button>
           </div>
         )}
       </section>

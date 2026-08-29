@@ -36,15 +36,6 @@ function validateRange(asset: AssetDescriptor, sourceInUs: number, sourceOutUs: 
   }
 }
 
-export function packVideoTrack(clips: readonly VideoClip[]): VideoClip[] {
-  let cursorUs = 0;
-  return clips.map((clip) => {
-    const packed = { ...clip, timelineStartUs: cursorUs };
-    cursorUs += clipDurationUs(clip);
-    return packed;
-  });
-}
-
 function isAdjacent(clips: readonly VideoClip[], fromClipId: string, toClipId: string): boolean {
   const fromIndex = clips.findIndex((clip) => clip.id === fromClipId);
   return fromIndex >= 0 && clips[fromIndex + 1]?.id === toClipId;
@@ -65,16 +56,48 @@ function sanitizeTransitions(clips: readonly VideoClip[], transitions: readonly 
   return transitions.filter((transition) => transitionFits(clips, transition));
 }
 
+function transitionDurationForBoundary(
+  transitions: readonly Transition[],
+  fromClipId: string,
+  toClipId: string,
+): number {
+  return transitions.find(
+    (transition) => transition.fromClipId === fromClipId && transition.toClipId === toClipId,
+  )?.durationUs ?? 0;
+}
+
+export function packVideoTrack(
+  clips: readonly VideoClip[],
+  transitions: readonly Transition[] = [],
+): VideoClip[] {
+  const packed: VideoClip[] = [];
+  let cursorUs = 0;
+
+  for (const clip of clips) {
+    const previous = packed.at(-1);
+    const overlapUs = previous
+      ? transitionDurationForBoundary(transitions, previous.id, clip.id)
+      : 0;
+    const timelineStartUs = Math.max(0, cursorUs - overlapUs);
+    const next = { ...clip, timelineStartUs };
+    packed.push(next);
+    cursorUs = timelineStartUs + clipDurationUs(next);
+  }
+
+  return packed;
+}
+
 function finalizeVideoChange(
   state: EditorState,
   videoClips: readonly VideoClip[],
-  transitions = state.transitions,
+  transitions: readonly Transition[] = state.transitions,
 ): EditorState {
-  const packed = packVideoTrack(videoClips);
+  const validTransitions = sanitizeTransitions(videoClips, transitions);
+  const packed = packVideoTrack(videoClips, validTransitions);
   return {
     ...state,
     videoClips: packed,
-    transitions: sanitizeTransitions(packed, transitions),
+    transitions: validTransitions,
   };
 }
 
@@ -172,7 +195,18 @@ export function executeCommand(state: EditorState, command: EditorCommand): Edit
       if (!transitionFits(state.videoClips, transition)) {
         fail("INVALID_TRANSITION", "cross dissolveは隣接clip間かつ両clipの長さ以内で指定してください");
       }
-      return { ...state, transitions: [...state.transitions, { ...transition }] };
+      return finalizeVideoChange(state, state.videoClips, [...state.transitions, { ...transition }]);
+    }
+
+    case "removeTransition": {
+      if (!state.transitions.some((transition) => transition.id === command.transitionId)) {
+        fail("TRANSITION_NOT_FOUND", `Transition ${command.transitionId} が見つかりません`);
+      }
+      return finalizeVideoChange(
+        state,
+        state.videoClips,
+        state.transitions.filter((transition) => transition.id !== command.transitionId),
+      );
     }
   }
 }

@@ -16,13 +16,13 @@ button:disabled { cursor: default; opacity: 0.45; }
   margin: 0 auto;
   padding: 32px 0 64px;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.2fr);
   gap: 16px;
 }
 
 .hero { grid-column: 1 / -1; padding: 12px 4px 8px; }
 .hero h1 { margin: 0; font-size: clamp(42px, 8vw, 84px); letter-spacing: -0.06em; }
-.hero p { max-width: 720px; line-height: 1.6; }
+.hero p { max-width: 760px; line-height: 1.6; }
 .eyebrow { margin: 0 0 8px; font-size: 12px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
 
 .panel {
@@ -39,25 +39,45 @@ button:disabled { cursor: default; opacity: 0.45; }
 .file-row label { display: grid; gap: 6px; font-weight: 700; }
 .asset-list { display: grid; gap: 8px; margin-top: 16px; }
 .asset-card { display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 10px 0; border-top: 1px solid #eee; }
-.asset-card div { display: grid; gap: 3px; }
+.asset-card div { display: grid; gap: 3px; min-width: 0; }
+.asset-card strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .asset-card small, .clip-card small { color: #666; }
 
-.preview-placeholder {
-  min-height: 180px;
+.preview-editor { display: grid; gap: 12px; }
+.preview-stage {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
   border-radius: 12px;
-  background: #181818;
-  color: #f8f8f2;
+  background: #111;
+}
+.preview-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #111;
+}
+.preview-empty {
+  position: absolute;
+  inset: 0;
   display: grid;
   place-content: center;
+  color: #eee;
   padding: 24px;
   text-align: center;
 }
+.transport { display: grid; grid-template-columns: auto auto minmax(120px, 1fr); align-items: center; gap: 10px; }
+.transport input[type="range"] { width: 100%; }
 
 .timeline-track { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; }
-.clip-card { min-width: 260px; background: #f3f3ef; border: 1px solid #d9d9d2; border-radius: 12px; padding: 12px; display: grid; gap: 8px; }
+.clip-card { min-width: 270px; background: #f3f3ef; border: 1px solid #d9d9d2; border-radius: 12px; padding: 12px; display: grid; gap: 8px; }
 .transition-button { width: 100%; }
+.transition-button.active { font-weight: 700; }
 .audio-strip { margin-top: 12px; padding: 12px; border-radius: 10px; background: #ece8ff; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .audio-strip label { display: flex; align-items: center; gap: 8px; }
+.audio-strip input[type="number"] { width: 7em; }
 
 pre { margin: 0; max-height: 340px; overflow: auto; background: #111; color: #e8ffe8; border-radius: 12px; padding: 16px; font-size: 12px; }
 .muted { color: #777; }
@@ -66,4 +86,6 @@ pre { margin: 0; max-height: 340px; overflow: auto; background: #111; color: #e8
 @media (max-width: 760px) {
   .app-shell { grid-template-columns: 1fr; }
   .panel, .timeline-panel, .state-panel, .hero { grid-column: 1; }
+  .transport { grid-template-columns: auto 1fr; }
+  .transport input[type="range"] { grid-column: 1 / -1; }
 }

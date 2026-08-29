@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { EditorCommandError, executeCommand } from "./executor";
-import { createEmptyEditorState, type EditorState } from "./model";
+import { createEmptyEditorState, timelineDurationUs, type EditorState } from "./model";
 import { toSafeEditorState } from "./safeState";
 
 const S = 1_000_000;
@@ -39,7 +39,7 @@ describe("executeCommand", () => {
     expect(state.videoClips.map((clip) => clip.timelineStartUs)).toEqual([0, 3 * S]);
   });
 
-  it("reorders clips by index without creating overlap", () => {
+  it("reorders clips by index without creating accidental overlap", () => {
     let state = addVideo(baseState(), "c1", "v1", 5 * S);
     state = addVideo(state, "c2", "v2", 4 * S);
     state = executeCommand(state, { type: "moveClip", clipId: "c2", toIndex: 0 });
@@ -61,6 +61,24 @@ describe("executeCommand", () => {
         clip: { id: "bad", assetId: "v1", sourceInUs: 0, sourceOutUs: 11 * S },
       }),
     ).toThrow(EditorCommandError);
+  });
+
+  it("makes a cross dissolve a real overlap in timeline time", () => {
+    let state = addVideo(baseState(), "c1", "v1", 5 * S);
+    state = addVideo(state, "c2", "v2", 4 * S);
+    state = executeCommand(state, {
+      type: "addTransition",
+      transition: {
+        id: "t1",
+        kind: "cross-dissolve",
+        fromClipId: "c1",
+        toClipId: "c2",
+        durationUs: S,
+      },
+    });
+
+    expect(state.videoClips.map((clip) => clip.timelineStartUs)).toEqual([0, 4 * S]);
+    expect(timelineDurationUs(state)).toBe(8 * S);
   });
 
   it("allows a cross dissolve only at an adjacent boundary", () => {
@@ -110,6 +128,24 @@ describe("executeCommand", () => {
     });
     state = executeCommand(state, { type: "moveClip", clipId: "c3", toIndex: 1 });
     expect(state.transitions).toEqual([]);
+  });
+
+  it("removes a transition and restores contiguous timing", () => {
+    let state = addVideo(baseState(), "c1", "v1", 5 * S);
+    state = addVideo(state, "c2", "v2", 4 * S);
+    state = executeCommand(state, {
+      type: "addTransition",
+      transition: {
+        id: "t1",
+        kind: "cross-dissolve",
+        fromClipId: "c1",
+        toClipId: "c2",
+        durationUs: S,
+      },
+    });
+    state = executeCommand(state, { type: "removeTransition", transitionId: "t1" });
+    expect(state.transitions).toEqual([]);
+    expect(state.videoClips.map((clip) => clip.timelineStartUs)).toEqual([0, 5 * S]);
   });
 
   it("validates audio volume", () => {
