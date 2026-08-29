@@ -82,7 +82,18 @@ WebCodecs、WebGPU、OPFS、IndexedDB、ffmpeg.wasm、完全な再リンク等�
 
 Issue #18 / PR #19の長期Asset registration / relink設計は今回の実装ゲートではない。Sprintでは `docs/WEBMCP_MVP_IMPLEMENTATION_PLAN.md` のsession-only境界を使う。
 
-## 6. GitとPR
+## 6. 共通conventions
+
+- UI文言、Issue、PR、開発文書は原則日本語を正本とする
+- code識別子、API名、型名は一般的な英語表記を使う
+- 文字コードはUTF-8を基本とする
+- テスト素材は自作、public domain、または再配布条件が明確な素材だけを使う
+- 大容量メディアをGitへ直接コミットしない
+- 新しいfont / icon / sample media等を追加する場合はライセンスを確認する
+
+この項目のために無関係なrights文書や全assetを毎回再監査する必要はない。新規追加・外部送信・配布条件が変わる時に確認する。
+
+## 7. GitとPR
 
 - `main`へ直接コミットしない
 - coherentな作業単位でbranch / PRを作る
@@ -95,7 +106,7 @@ Issue #18 / PR #19の長期Asset registration / relink設計は今回の実装�
 
 仕様にない重大な設計判断が必要な場合だけ、影響箇所を止めて #15へ `DESIGN_DECISION_REQUIRED` を残す。小さな実装詳細まで逐一停止しない。
 
-## 7. 検証
+## 8. 検証
 
 変更内容に直接関係する検証を行う。
 
@@ -129,7 +140,7 @@ command / WebMCP変更では特に:
 
 「検証を多く行ったこと」ではなく、**変更を壊していないことを必要十分に確認できたこと**を完了条件とする。
 
-## 8. 人間判断・実機確認
+## 9. 人間判断・実機確認
 
 次は勝手に確定しない。
 
@@ -149,7 +160,7 @@ command / WebMCP変更では特に:
 
 ただし、実機確認が必要という理由だけで、それ以前にできるcode / test / docs作業を止めない。
 
-## 9. 長期DOGAGA
+## 10. 長期DOGAGA
 
 通常ロードマップは削除しない。
 
