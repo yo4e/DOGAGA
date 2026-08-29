@@ -2,134 +2,175 @@
 
 このファイルは、DOGAGAリポジトリで作業するCodexおよびその他のAI実装者向けの共通ルールである。
 
-## 1. 最初に読む文書
+## 1. 現在の最優先
 
-作業開始前に、少なくとも次を読む。
+2026-08-30から、通常DOGAGAロードマップはいったん保留し、**WebMCP Challenge向け短期Sprint**を最優先とする。
 
-1. `README.md`
-2. `docs/PRODUCT_VISION.md`
-3. `docs/DEVELOPMENT_ROADMAP.md`
-4. `docs/ADR-001-DESKTOP-FIRST.md`
-5. `docs/ADR-002-JAPANESE-FIRST.md`
-6. 作業対象に関係するIssueと設計文書
+現在の正本:
 
-歌詞同期を扱う場合は `docs/LYRIC_SYNC_UX.md`、素材・保存・外部通信を扱う場合は `docs/RIGHTS_AND_DATA_POLICY.md` も必ず読む。
+- 司令塔: Issue #15の最新コメント
+- 競合調査: `docs/WEBMCP_COMPETITOR_RESEARCH.md`
+- 実装方針: `docs/WEBMCP_MVP_IMPLEMENTATION_PLAN.md`
+- 実装Issue: #20 / #21
+- 提出・最終QA: #22
 
-## 2. プロダクトの中心
+通常ロードマップ、旧Batch文書、Issue #2 / #4 / #18、PR #19は長期DOGAGAの資料として保持するが、**現在のWebMCP Sprintの実装開始ゲートではない**。
 
-DOGAGAは、PCブラウザでMV、PV、ショート動画、歌詞動画、Spotify Canvasを作る、楽曲中心の軽量動画編集アプリである。
+## 2. 作業開始時に読むもの
 
-- Premiere Proの縮小コピーにはしない
-- Canva程度の入りやすさを保つ
-- 楽曲、波形、歌詞、文字、ビートを一つの編集体験として扱う
-- 初期対象はPCブラウザ。スマートフォン本格編集はMVP対象外
-- 長編映画、複雑なマルチカメラ、高度なカラーグレーディングは対象外
+毎回リポジトリ全体を監査しない。
 
-## 3. 言語方針
+最低限:
 
-MVPの正本言語は日本語とする。
+1. この `AGENTS.md`
+2. 対象Issue
+3. 対象Issueが直接指定する実装・設計ファイル
 
-- UI文言、エラー、オンボーディング、ヘルプ、アクセシビリティラベルは日本語から設計する
-- 仕様書、Issue、PR本文、開発メモは原則日本語で書く
-- コード識別子、API名、型名、ライブラリ名は一般的な英語表記を使う
-- UI文字列をコンポーネントへ無秩序に直書きしない
-- 初期実装から日本語メッセージカタログへ集約し、将来 `en` を追加できる構造にする
-- MVPで英訳の網羅や言語切替UIは要求しない
-- 日本語の歌詞は単語間スペースがない前提で扱い、英語向けの単語分割ロジックを流用しない
-- 文字コードはUTF-8を基本とする
+WebMCP Sprintでは、初回または方針確認が必要なときだけ `docs/WEBMCP_MVP_IMPLEMENTATION_PLAN.md` を読む。
 
-詳細は `docs/ADR-002-JAPANESE-FIRST.md` を参照する。
+次の文書は、対象作業に必要な場合だけ参照する。
 
-## 4. 技術上の前提
+- `README.md`
+- `docs/PRODUCT_VISION.md`
+- `docs/DEVELOPMENT_ROADMAP.md`
+- `docs/PROJECT_FORMAT.md`
+- `docs/EDIT_COMMAND_MODEL.md`
+- ADR類
+- rights / lyrics / codec / test-media等の個別文書
 
-初期基準:
+**「念のため」だけを理由に全設計文書、全Issue、全PRを毎回横断しない。**
 
-- 第一基準: macOS + Chrome最新版
-- 第二基準: Windows + Chrome / Edge
-- デスクトップ、マウス＋キーボード操作
-- 最大1080p / 30fpsを初期目標
-- 完成尺は主に3〜10分以内
-- ローカルファースト
+## 3. WebMCP Sprintの中心
 
-現在の技術候補は仮説であり、Issue #2の技術スパイクで確定する。
+今回作るものは、高機能AI動画編集ソフトではない。
+
+> ブラウザで開いている動画編集ページ自身がWebMCP toolsを公開し、人間UIとbrowser agentが同じProject state / command executorを共同操作する最小デモ。
+
+優先順位:
+
+1. local video / audioを人間が読み込める
+2. 人間が基本編集できる
+3. UIとagentが同じcommand executorを使う
+4. WebMCP toolsから同じstateを読み書きできる
+5. agent編集 → 人間修正 → agent再読取・再編集を示せる
+6. public demoとして提出できる
+
+完成版NLEの機能量は優先しない。
+
+## 4. 技術方針
+
+Sprintでは次を採用してよい。
 
 - React + TypeScript + Vite
-- WebCodecs
-- Web Audio API
-- Canvas 2D / 必要に応じてWebGL
-- Web Workers
-- OPFS / IndexedDB
-- バージョン付きJSONプロジェクト形式
-- ffmpeg.wasmは必要箇所だけ検証
+- native `HTMLVideoElement` / `HTMLAudioElement` preview
+- session-only runtime Asset binding
+- simple command executor
+- `document.modelContext.registerTool()`
+- WebMCP lifecycle用の小規模React helper
 
-既存文書と矛盾する技術選択をする場合は、理由をIssueまたはADRへ残す。
+WebCodecs、WebGPU、OPFS、IndexedDB、ffmpeg.wasm、完全な再リンク等は必要になった時だけ導入する。
 
-## 5. GitとPR
+大きな依存や新しいbackend / cloud / authを必要とする場合は止めて理由を報告する。
+
+## 5. Projectとローカル素材
+
+- `File`、File handle、absolute path、object URLをagentへ公開しない
+- portable Project dataとruntime bindingを分離する
+- WebMCPはユーザーがすでに読み込んだAsset IDだけを扱う
+- 元動画・音声を無断で外部送信しない
+- WebMCP adapter専用の第二Project stateを作らない
+
+Issue #18 / PR #19の長期Asset registration / relink設計は今回の実装ゲートではない。Sprintでは `docs/WEBMCP_MVP_IMPLEMENTATION_PLAN.md` のsession-only境界を使う。
+
+## 6. 共通conventions
+
+- UI文言、Issue、PR、開発文書は原則日本語を正本とする
+- code識別子、API名、型名は一般的な英語表記を使う
+- 文字コードはUTF-8を基本とする
+- テスト素材は自作、public domain、または再配布条件が明確な素材だけを使う
+- 大容量メディアをGitへ直接コミットしない
+- 新しいfont / icon / sample media等を追加する場合はライセンスを確認する
+
+この項目のために無関係なrights文書や全assetを毎回再監査する必要はない。新規追加・外部送信・配布条件が変わる時に確認する。
+
+## 7. GitとPR
 
 - `main`へ直接コミットしない
-- 一つのIssueにつき一つの作業ブランチを基本とする
-- 大きなIssueは、独立してレビューできる複数PRへ分けてよい
-- 無関係なリファクタリングを同じPRへ混ぜない
-- PR本文に対象Issue、実装内容、検証内容、未解決事項を書く
-- 実装中に仕様判断が必要になった場合、推測で広げずIssueへ記録する
-- 他の作業ブランチを勝手に統合しない
+- coherentな作業単位でbranch / PRを作る
+- 無関係なリファクタリングを混ぜない
+- PR本文に変更内容、検証、未検証事項を書く
 
-推奨ブランチ例:
+**一Issue一session、一Issue一PRを絶対条件にしない。**
 
-- `feat/issue-2-media-spike`
-- `docs/issue-5-project-format`
-- `test/issue-4-codec-matrix`
+#20のediting coreから#21のWebMCP adapterまで、一つの実装として自然に連続する場合は同じbranch / PRで進めてよい。PR分割そのものを目的にしない。
 
-## 6. 実装原則
+仕様にない重大な設計判断が必要な場合だけ、影響箇所を止めて #15へ `DESIGN_DECISION_REQUIRED` を残す。小さな実装詳細まで逐一停止しない。
 
-- まず縦に一本動く最小経路を作る
-- 万能な形式対応より、対応形式と制限を明示する
-- UIより先に、再生・シーク・音ズレ・書き出しの成立性を確認する
-- プレビューと書き出しで同じ時間モデルを使う
-- 時刻表現を暗黙に混在させない
-- Undo / Redoへ接続できる編集モデルを守る
-- 重い処理でメインスレッドを長時間ブロックしない
-- エラーを握りつぶさず、ユーザー向け原因と開発者向け詳細を分ける
-- 対象Issueの外へ機能を広げない
+## 8. 検証
 
-## 7. データ、権利、プライバシー
+変更内容に直接関係する検証を行う。
 
-- 元動画、音声、歌詞を無断で外部送信しない
-- 外部APIを追加する場合は、送信内容、目的、保存期間を明示する設計にする
-- テスト素材は自作、パブリックドメイン、または再配布条件が明確な素材だけを使う
-- 大容量メディアをGitへ直接コミットしない
-- 素材の出所とライセンスを記録する
-- FFmpeg / ffmpeg.wasmを使う場合、実際のビルド構成とLGPL/GPL条件を確認する
-- フォント、アイコン、サンプル音源、画像にもライセンス記録を残す
+実装変更では可能な範囲で:
 
-## 8. テストと提出物
+- typecheck
+- lint
+- unit tests
+- build
+- changed behaviorの確認
 
-最低限、PR本文へ次を書く。
+command / WebMCP変更では特に:
 
-- 実行したコマンド
-- 動作確認したOS／ブラウザ
-- 使用した入力素材の形式
-- 成功した操作
-- 失敗または未検証の操作
-- 既知の制限
-- スクリーンショットまたは短い動画が有効な場合は添付
+- invalid inputでstateが壊れない
+- UIとWebMCPが同じexecutorを使う
+- File / object URL / path等がtool resultへ漏れない
 
-実装PRでは、可能な範囲で次を用意する。
+実ブラウザが必要なものは、実行できなければ未検証として明記する。
 
-- 型チェック
-- Lint
-- 単体テスト
-- 主要経路のブラウザテスト
-- エラー状態の確認
+### 毎回は不要な監査
 
-## 9. 完了の定義
+変更と無関係なら次は行わない。
 
-Issueのチェックボックスを埋めただけで完了としない。
+- 全docsの全文横断照合
+- Markdown code fence数 / table数の監査
+- 全fixture IDの再照合
+- 旧用語の全repository検索
+- 通常ロードマップ全acceptanceの再確認
+- macOS / Windows双方のcodec matrix再測定
+- 変更していないSchema / fixtureの再検証
 
-- 成果物がリポジトリへ存在する
-- 受け入れ条件を検証した記録がある
-- 既知の制限が文書化されている
-- 関連文書が古くなった場合は同じPRで更新されている
-- レビュー可能な大きさのPRになっている
+「検証を多く行ったこと」ではなく、**変更を壊していないことを必要十分に確認できたこと**を完了条件とする。
 
-判断に迷った場合は、機能を増やすより、Issueへ未決事項を残して止める。
+## 9. 人間判断・実機確認
+
+次は勝手に確定しない。
+
+- プロダクト方向の大幅変更
+- ライセンス変更
+- ユーザー素材の外部送信
+- 有料サービス / 新しい認証情報
+- 大規模依存やbackend導入
+- 不可逆なデータ削除
+- セキュリティ / プライバシー / 法務上の重大判断
+
+次は必要に応じて `HUMAN_VISUAL_CHECK_REQUIRED` とする。
+
+- UIの見た目・操作感
+- 動画 / 音声 / transitionの自然さ
+- 実ブラウザWebMCP scenario
+
+ただし、実機確認が必要という理由だけで、それ以前にできるcode / test / docs作業を止めない。
+
+## 10. 長期DOGAGA
+
+通常ロードマップは削除しない。
+
+WebMCP Challenge後、次を改めて評価する。
+
+- Issue #2 WebCodecs / export技術スパイク
+- Issue #4 codec matrix
+- Issue #18 / PR #19 Asset command / relink
+- OPFS / IndexedDB
+- `.dogaga` portability
+- lyrics / text / waveform / export
+
+Sprintの簡易実装をそのまま恒久設計とみなさず、成果を長期設計へ統合する。

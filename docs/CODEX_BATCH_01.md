@@ -1,5 +1,11 @@
 # Codex Batch 01 作業指示
 
+> **ARCHIVED / HISTORICAL — 2026-08-30**
+>
+> この文書は2026-07-17時点の初期Batch記録として保持する。**現在の作業指示として使用しない。**
+>
+> WebMCP Challenge Sprintでは `AGENTS.md`、対象Issue、`docs/WEBMCP_MVP_IMPLEMENTATION_PLAN.md` を正本とする。下記のWave順、Issue #2の事前ゲート、一Issue一session、全共通文書の毎回読込は現在は適用しない。
+
 更新日: 2026-07-17
 
 この文書は、DOGAGAの初回実装・設計作業を複数のCodexセッションへ安全に分配するための指示書である。
