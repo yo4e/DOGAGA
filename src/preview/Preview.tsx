@@ -1,10 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { EditorController } from "../editor/controller";
 import {
+  allVideoClips,
   clipDurationUs,
   clipFadeOpacityAt,
+  getAudioTracks,
+  getVideoTracks,
   sourceTimeUsAt,
   timelineDurationUs,
+  type AudioClip,
+  type AudioTrack,
   type EditorState,
   type VideoClip,
 } from "../editor/model";
@@ -23,13 +28,19 @@ type Clock = {
   playheadUs: number;
 };
 
+type AudioLayer = {
+  track: AudioTrack;
+  clip: AudioClip;
+};
+
 function clipEndUs(clip: VideoClip): number {
   return clip.timelineStartUs + clipDurationUs(clip);
 }
 
 function transitionOpacity(state: EditorState, clip: VideoClip): number {
+  const clips = allVideoClips(state);
   for (const transition of state.transitions) {
-    const to = state.videoClips.find((candidate) => candidate.id === transition.toClipId);
+    const to = clips.find((candidate) => candidate.id === transition.toClipId);
     if (!to) continue;
     const startUs = to.timelineStartUs;
     const endUs = startUs + transition.durationUs;
@@ -42,15 +53,16 @@ function transitionOpacity(state: EditorState, clip: VideoClip): number {
   return 1;
 }
 
-function opacityForClip(state: EditorState, clip: VideoClip): number {
-  return transitionOpacity(state, clip) * clipFadeOpacityAt(clip, state.playheadUs);
+function opacityForClip(state: EditorState, clip: VideoClip, trackOpacity: number): number {
+  return trackOpacity * transitionOpacity(state, clip) * clipFadeOpacityAt(clip, state.playheadUs);
 }
 
-function VideoLayer({ clip, state, runtime, playing }: {
+function VideoLayer({ clip, state, runtime, playing, trackOpacity }: {
   clip: VideoClip;
   state: EditorState;
   runtime: MediaRuntime;
   playing: boolean;
+  trackOpacity: number;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
   const binding = runtime.get(clip.assetId);
@@ -84,45 +96,60 @@ function VideoLayer({ clip, state, runtime, playing }: {
       muted
       playsInline
       preload="auto"
-      style={{ opacity: opacityForClip(state, clip), objectFit: state.canvas.fitMode }}
+      style={{ opacity: opacityForClip(state, clip, trackOpacity), objectFit: state.canvas.fitMode }}
       onLoadedMetadata={(event) => syncVideo(event.currentTarget)}
     />
   );
 }
 
+function audioEndUs(clip: AudioClip): number {
+  return clip.timelineStartUs + (clip.sourceOutUs - clip.sourceInUs);
+}
+
+function audioTargetSeconds(clip: AudioClip, playheadUs: number): number {
+  return (clip.sourceInUs + (playheadUs - clip.timelineStartUs)) / US;
+}
+
 export function Preview({ state, controller, runtime }: Props) {
   const [playing, setPlaying] = useState(false);
   const clockRef = useRef<Clock | null>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const audioRefs = useRef(new Map<string, HTMLAudioElement>());
   const durationUs = timelineDurationUs(state);
   const canvasRatio = state.canvas.width / state.canvas.height;
 
-  const activeClips = useMemo(
-    () => state.videoClips.filter(
-      (clip) => state.playheadUs >= clip.timelineStartUs && state.playheadUs < clipEndUs(clip),
-    ),
-    [state.playheadUs, state.videoClips],
+  const videoTracks = useMemo(() => getVideoTracks(state), [state.tracks]);
+  const allVideos = useMemo(() => allVideoClips(state), [state.tracks]);
+  const activeVideoLayers = useMemo(
+    () => videoTracks.flatMap((track) => {
+      if (!track.visible || track.opacity <= 0) return [];
+      return track.clips
+        .filter((clip) => state.playheadUs >= clip.timelineStartUs && state.playheadUs < clipEndUs(clip))
+        .map((clip) => ({ track, clip }));
+    }),
+    [state.playheadUs, videoTracks],
   );
 
-  const audioBinding = state.audioClip ? runtime.get(state.audioClip.assetId) : undefined;
+  const audioLayers = useMemo<AudioLayer[]>(
+    () => getAudioTracks(state).flatMap((track) => track.clips.map((clip) => ({ track, clip }))),
+    [state.tracks],
+  );
 
-  const syncAudio = (audio: HTMLAudioElement) => {
-    const clip = state.audioClip;
-    if (!clip || !audioBinding) {
+  const syncAudio = (audio: HTMLAudioElement, layer: AudioLayer) => {
+    const { track, clip } = layer;
+    const binding = runtime.get(clip.assetId);
+    if (!binding || track.muted) {
       audio.pause();
       return;
     }
 
+    const active = state.playheadUs >= clip.timelineStartUs && state.playheadUs < audioEndUs(clip);
     audio.volume = clip.volume;
-    const audioEndUs = clip.timelineStartUs + (clip.sourceOutUs - clip.sourceInUs);
-    const active = state.playheadUs >= clip.timelineStartUs && state.playheadUs < audioEndUs;
-
     if (!active) {
       audio.pause();
       return;
     }
 
-    const target = (clip.sourceInUs + (state.playheadUs - clip.timelineStartUs)) / US;
+    const target = audioTargetSeconds(clip, state.playheadUs);
     if (audio.readyState > 0 && (!playing || Math.abs(audio.currentTime - target) > 0.15)) {
       audio.currentTime = target;
     }
@@ -165,35 +192,36 @@ export function Preview({ state, controller, runtime }: Props) {
   }, [controller, playing]);
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    syncAudio(audio);
-  }, [audioBinding, playing, state.audioClip, state.playheadUs]);
+    for (const layer of audioLayers) {
+      const audio = audioRefs.current.get(layer.clip.id);
+      if (audio) syncAudio(audio, layer);
+    }
+  }, [audioLayers, playing, state.playheadUs]);
+
+  const startAudiosAt = (startUs: number) => {
+    for (const layer of audioLayers) {
+      const audio = audioRefs.current.get(layer.clip.id);
+      if (!audio || layer.track.muted) continue;
+      const { clip } = layer;
+      if (startUs < clip.timelineStartUs || startUs >= audioEndUs(clip)) continue;
+      if (audio.readyState > 0) audio.currentTime = audioTargetSeconds(clip, startUs);
+      audio.volume = clip.volume;
+      void audio.play().catch(() => undefined);
+    }
+  };
 
   const togglePlayback = () => {
     if (playing) {
       setPlaying(false);
       clockRef.current = null;
-      audioRef.current?.pause();
+      for (const audio of audioRefs.current.values()) audio.pause();
       return;
     }
 
     const startUs = state.playheadUs >= durationUs ? 0 : state.playheadUs;
     if (startUs !== state.playheadUs) controller.setPlayheadUs(startUs);
     clockRef.current = { wallMs: performance.now(), playheadUs: startUs };
-
-    if (state.audioClip && audioBinding && audioRef.current) {
-      const clip = state.audioClip;
-      const endUs = clip.timelineStartUs + (clip.sourceOutUs - clip.sourceInUs);
-      if (startUs >= clip.timelineStartUs && startUs < endUs) {
-        if (audioRef.current.readyState > 0) {
-          audioRef.current.currentTime = (clip.sourceInUs + (startUs - clip.timelineStartUs)) / US;
-        }
-        audioRef.current.volume = clip.volume;
-        void audioRef.current.play().catch(() => undefined);
-      }
-    }
-
+    startAudiosAt(startUs);
     setPlaying(true);
   };
 
@@ -207,19 +235,39 @@ export function Preview({ state, controller, runtime }: Props) {
           width: `min(100%, ${Math.round(canvasRatio * 560)}px)`,
         }}
       >
-        {activeClips.map((clip) => (
-          <VideoLayer key={clip.id} clip={clip} state={state} runtime={runtime} playing={playing} />
+        {activeVideoLayers.map(({ track, clip }) => (
+          <VideoLayer
+            key={clip.id}
+            clip={clip}
+            state={state}
+            runtime={runtime}
+            playing={playing}
+            trackOpacity={track.opacity}
+          />
         ))}
-        {!activeClips.length && (
+        {!activeVideoLayers.length && (
           <div className="preview-empty">
-            <strong>{state.videoClips.length ? "再生位置に映像がありません" : "動画をタイムラインへ追加してください"}</strong>
+            <strong>{allVideos.length ? "再生位置に表示中の映像がありません" : "動画をタイムラインへ追加してください"}</strong>
           </div>
         )}
       </div>
 
-      {state.audioClip && audioBinding && (
-        <audio ref={audioRef} src={audioBinding.objectUrl} preload="auto" onLoadedMetadata={(event) => syncAudio(event.currentTarget)} />
-      )}
+      {audioLayers.map((layer) => {
+        const binding = runtime.get(layer.clip.assetId);
+        if (!binding) return null;
+        return (
+          <audio
+            key={layer.clip.id}
+            ref={(element) => {
+              if (element) audioRefs.current.set(layer.clip.id, element);
+              else audioRefs.current.delete(layer.clip.id);
+            }}
+            src={binding.objectUrl}
+            preload="auto"
+            onLoadedMetadata={(event) => syncAudio(event.currentTarget, layer)}
+          />
+        );
+      })}
 
       <div className="transport">
         <button type="button" onClick={togglePlayback} disabled={durationUs <= 0}>
