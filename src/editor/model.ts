@@ -70,6 +70,7 @@ export type EditorCommand =
   | { type: "addClip"; clip: VideoClipDraft; atIndex?: number }
   | { type: "moveClip"; clipId: ClipId; toIndex: number }
   | { type: "trimClip"; clipId: ClipId; sourceInUs: number; sourceOutUs: number }
+  | { type: "splitClip"; clipId: ClipId; atTimelineUs: number; newClipId: ClipId }
   | { type: "deleteClip"; clipId: ClipId }
   | { type: "setAudio"; audio: AudioClip | null }
   | { type: "setCanvas"; preset: CanvasPresetId; fitMode: CanvasFitMode }
