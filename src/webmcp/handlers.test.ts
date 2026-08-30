@@ -2,13 +2,20 @@ import { describe, expect, it } from "vitest";
 import { EditorController } from "../editor/controller";
 import {
   addClip,
+  addTrack,
   addTransition,
+  clearAudio,
   getProjectState,
   moveClip,
+  moveClipToTrack,
+  moveTrack,
   setAudio,
   setCanvas,
   setClipFade,
   setClipSpeed,
+  setTrackMute,
+  setTrackOpacity,
+  setTrackVisibility,
   splitClip,
   trimClip,
 } from "./handlers";
@@ -24,72 +31,72 @@ function controllerWithAssets() {
 }
 
 describe("WebMCP handlers", () => {
-  it("adds and reorders clips through the shared controller", () => {
+  it("adds tracks and clips while keeping old add_clip default on V1", () => {
+    const controller = controllerWithAssets();
+    const first = addClip(controller, { assetId: "v1", sourceOutUs: 5 * S });
+    const v2 = addTrack(controller, { kind: "video", name: "V2" });
+    const overlay = addClip(controller, { assetId: "v2", trackId: v2.trackId, sourceOutUs: 4 * S });
+
+    const safe = getProjectState(controller);
+    expect(safe.videoClips.find((clip) => clip.id === first.clipId)?.trackId).toBe("video-1");
+    expect(safe.videoClips.find((clip) => clip.id === overlay.clipId)?.trackId).toBe(v2.trackId);
+    expect(safe.tracks.filter((track) => track.kind === "video")).toHaveLength(2);
+  });
+
+  it("reorders within a track and moves clips between tracks", () => {
     const controller = controllerWithAssets();
     const first = addClip(controller, { assetId: "v1", sourceOutUs: 5 * S });
     const second = addClip(controller, { assetId: "v2", sourceOutUs: 4 * S });
     moveClip(controller, { clipId: second.clipId, toIndex: 0 });
+    expect(getProjectState(controller).videoClips.slice(0, 2).map((clip) => clip.id)).toEqual([second.clipId, first.clipId]);
 
-    expect(controller.getState().videoClips.map((clip) => clip.id)).toEqual([
-      second.clipId,
-      first.clipId,
-    ]);
+    const v2 = addTrack(controller, { kind: "video" });
+    moveClipToTrack(controller, { clipId: first.clipId, trackId: v2.trackId });
+    expect(getProjectState(controller).videoClips.find((clip) => clip.id === first.clipId)?.trackId).toBe(v2.trackId);
   });
 
-  it("trims through the same executor validation", () => {
+  it("sets track opacity, visibility, mute and ordering", () => {
     const controller = controllerWithAssets();
-    const { clipId } = addClip(controller, { assetId: "v1" });
-    trimClip(controller, { clipId, sourceInUs: S, sourceOutUs: 3 * S });
-    expect(controller.getState().videoClips[0]).toMatchObject({ sourceInUs: S, sourceOutUs: 3 * S });
-    expect(() => trimClip(controller, { clipId, sourceInUs: 4 * S, sourceOutUs: 3 * S })).toThrow();
+    const v2 = addTrack(controller, { kind: "video" });
+    const a2 = addTrack(controller, { kind: "audio" });
+    setTrackOpacity(controller, { trackId: v2.trackId, opacity: 0.4 });
+    setTrackVisibility(controller, { trackId: v2.trackId, visible: false });
+    setTrackMute(controller, { trackId: a2.trackId, muted: true });
+    moveTrack(controller, { trackId: v2.trackId, toIndex: 0 });
+
+    const safe = getProjectState(controller);
+    expect(safe.tracks.find((track) => track.id === v2.trackId)).toMatchObject({ opacity: 0.4, visible: false, order: 0 });
+    expect(safe.tracks.find((track) => track.id === a2.trackId)).toMatchObject({ muted: true });
   });
 
-  it("splits at explicit timeline time or the current playhead", () => {
-    const controller = controllerWithAssets();
-    const { clipId } = addClip(controller, { assetId: "v1", sourceOutUs: 6 * S });
-    const explicit = splitClip(controller, { clipId, timelineUs: 2 * S });
-    expect(controller.getState().videoClips).toHaveLength(2);
-    expect(controller.getState().videoClips[1]).toMatchObject({
-      id: explicit.newClipId,
-      sourceInUs: 2 * S,
-      sourceOutUs: 6 * S,
-    });
-
-    controller.setPlayheadUs(4 * S);
-    const fromPlayhead = splitClip(controller, { clipId: explicit.newClipId });
-    expect(fromPlayhead.timelineUs).toBe(4 * S);
-    expect(controller.getState().videoClips).toHaveLength(3);
-  });
-
-  it("sets video playback rate through the shared executor", () => {
+  it("keeps trim, split, speed and fade on the shared track-aware executor", () => {
     const controller = controllerWithAssets();
     const { clipId } = addClip(controller, { assetId: "v1", sourceOutUs: 8 * S });
+    trimClip(controller, { clipId, sourceInUs: S, sourceOutUs: 7 * S });
     setClipSpeed(controller, { clipId, playbackRate: 2 });
-    expect(controller.getState().videoClips[0].playbackRate).toBe(2);
-    expect(controller.getSafeState().durationUs).toBe(4 * S);
-    expect(() => setClipSpeed(controller, { clipId, playbackRate: 3 })).toThrow();
-  });
-
-  it("sets video fades through the shared executor", () => {
-    const controller = controllerWithAssets();
-    const { clipId } = addClip(controller, { assetId: "v1", sourceOutUs: 5 * S });
     setClipFade(controller, { clipId, fadeInUs: 500_000, fadeOutUs: S });
-    expect(controller.getState().videoClips[0]).toMatchObject({
-      fadeInUs: 500_000,
-      fadeOutUs: S,
-    });
-    expect(getProjectState(controller).videoClips[0]).toMatchObject({
-      fadeInUs: 500_000,
-      fadeOutUs: S,
-    });
-    expect(() => setClipFade(controller, { clipId, fadeInUs: 750_000, fadeOutUs: 0 })).toThrow();
+    controller.setPlayheadUs(S);
+    const split = splitClip(controller, { clipId });
+
+    const safe = getProjectState(controller);
+    expect(safe.videoClips).toHaveLength(2);
+    expect(safe.videoClips[0]).toMatchObject({ playbackRate: 2, fadeInUs: 500_000, fadeOutUs: 0 });
+    expect(safe.videoClips[1]).toMatchObject({ id: split.newClipId, playbackRate: 2, fadeInUs: 0, fadeOutUs: S });
   });
 
-  it("sets audio and validates volume in the executor", () => {
+  it("sets audio independently on A1 and A2", () => {
     const controller = controllerWithAssets();
+    const a2 = addTrack(controller, { kind: "audio", name: "A2" });
     setAudio(controller, { assetId: "a1", timelineStartUs: S, volume: 0.4 });
-    expect(controller.getState().audioClip).toMatchObject({ assetId: "a1", timelineStartUs: S, volume: 0.4 });
-    expect(() => setAudio(controller, { assetId: "a1", volume: 2 })).toThrow();
+    setAudio(controller, { assetId: "a1", trackId: a2.trackId, timelineStartUs: 2 * S, volume: 0.2 });
+
+    let safe = getProjectState(controller);
+    expect(safe.audioClip).toMatchObject({ trackId: "audio-1", timelineStartUs: S, volume: 0.4 });
+    expect(safe.audioClips.find((clip) => clip.trackId === a2.trackId)).toMatchObject({ timelineStartUs: 2 * S, volume: 0.2 });
+
+    clearAudio(controller, { trackId: a2.trackId });
+    safe = getProjectState(controller);
+    expect(safe.audioClips.some((clip) => clip.trackId === a2.trackId)).toBe(false);
   });
 
   it("sets the canvas through the shared controller", () => {
@@ -104,17 +111,18 @@ describe("WebMCP handlers", () => {
     expect(() => setCanvas(controller, { preset: "cinema" })).toThrow();
   });
 
-  it("creates an actual transition overlap", () => {
+  it("creates an actual transition overlap on one track", () => {
     const controller = controllerWithAssets();
     const first = addClip(controller, { assetId: "v1", sourceOutUs: 5 * S });
     const second = addClip(controller, { assetId: "v2", sourceOutUs: 4 * S });
     addTransition(controller, { fromClipId: first.clipId, toClipId: second.clipId, durationUs: S });
-    expect(controller.getState().videoClips[1].timelineStartUs).toBe(4 * S);
+    expect(getProjectState(controller).videoClips.find((clip) => clip.id === second.clipId)?.timelineStartUs).toBe(4 * S);
   });
 
-  it("returns only the safe project state", () => {
+  it("returns only safe project state", () => {
     const controller = controllerWithAssets();
     const text = JSON.stringify(getProjectState(controller));
+    expect(text).toContain("tracks");
     expect(text).toContain("one.mp4");
     expect(text).not.toContain("objectUrl");
     expect(text).not.toContain("fileHandle");

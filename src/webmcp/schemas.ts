@@ -4,10 +4,68 @@ export const emptySchema = {
   additionalProperties: false,
 } as const;
 
+export const addTrackSchema = {
+  type: "object",
+  properties: {
+    kind: { type: "string", enum: ["video", "audio"] },
+    name: { type: "string", minLength: 1 },
+  },
+  required: ["kind"],
+  additionalProperties: false,
+} as const;
+
+export const trackIdSchema = {
+  type: "object",
+  properties: { trackId: { type: "string" } },
+  required: ["trackId"],
+  additionalProperties: false,
+} as const;
+
+export const moveTrackSchema = {
+  type: "object",
+  properties: {
+    trackId: { type: "string" },
+    toIndex: { type: "integer", minimum: 0 },
+  },
+  required: ["trackId", "toIndex"],
+  additionalProperties: false,
+} as const;
+
+export const setTrackOpacitySchema = {
+  type: "object",
+  properties: {
+    trackId: { type: "string" },
+    opacity: { type: "number", minimum: 0, maximum: 1 },
+  },
+  required: ["trackId", "opacity"],
+  additionalProperties: false,
+} as const;
+
+export const setTrackVisibilitySchema = {
+  type: "object",
+  properties: {
+    trackId: { type: "string" },
+    visible: { type: "boolean" },
+  },
+  required: ["trackId", "visible"],
+  additionalProperties: false,
+} as const;
+
+export const setTrackMuteSchema = {
+  type: "object",
+  properties: {
+    trackId: { type: "string" },
+    muted: { type: "boolean" },
+  },
+  required: ["trackId", "muted"],
+  additionalProperties: false,
+} as const;
+
 export const addClipSchema = {
   type: "object",
   properties: {
     assetId: { type: "string", description: "Loaded video Asset ID from get_project_state" },
+    trackId: { type: "string", description: "Target video track ID. Defaults to V1 when omitted." },
     sourceInUs: { type: "integer", minimum: 0 },
     sourceOutUs: { type: "integer", minimum: 1 },
     atIndex: { type: "integer", minimum: 0 },
@@ -23,6 +81,17 @@ export const moveClipSchema = {
     toIndex: { type: "integer", minimum: 0 },
   },
   required: ["clipId", "toIndex"],
+  additionalProperties: false,
+} as const;
+
+export const moveClipToTrackSchema = {
+  type: "object",
+  properties: {
+    clipId: { type: "string" },
+    trackId: { type: "string" },
+    toIndex: { type: "integer", minimum: 0 },
+  },
+  required: ["clipId", "trackId"],
   additionalProperties: false,
 } as const;
 
@@ -95,12 +164,21 @@ export const setAudioSchema = {
   type: "object",
   properties: {
     assetId: { type: "string", description: "Loaded audio Asset ID from get_project_state" },
+    trackId: { type: "string", description: "Target audio track ID. Defaults to A1 when omitted." },
     timelineStartUs: { type: "integer", minimum: 0 },
     sourceInUs: { type: "integer", minimum: 0 },
     sourceOutUs: { type: "integer", minimum: 1 },
     volume: { type: "number", minimum: 0, maximum: 1 },
   },
   required: ["assetId"],
+  additionalProperties: false,
+} as const;
+
+export const clearAudioSchema = {
+  type: "object",
+  properties: {
+    trackId: { type: "string", description: "Audio track ID. Defaults to A1 when omitted." },
+  },
   additionalProperties: false,
 } as const;
 

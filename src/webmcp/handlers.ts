@@ -1,6 +1,9 @@
 import type { EditorController } from "../editor/controller";
 import {
   CANVAS_PRESETS,
+  getAudioTracks,
+  getDefaultAudioTrack,
+  getVideoTracks,
   type CanvasFitMode,
   type CanvasPresetId,
 } from "../editor/model";
@@ -28,6 +31,21 @@ function requiredString(input: Record<string, unknown>, key: string): string {
   return value;
 }
 
+function optionalString(input: Record<string, unknown>, key: string): string | undefined {
+  const value = input[key];
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`${key}は空でないstringで指定してください`);
+  }
+  return value;
+}
+
+function requiredBoolean(input: Record<string, unknown>, key: string): boolean {
+  const value = input[key];
+  if (typeof value !== "boolean") throw new Error(`${key}はbooleanで指定してください`);
+  return value;
+}
+
 function optionalInteger(input: Record<string, unknown>, key: string): number | undefined {
   const value = input[key];
   if (value === undefined) return undefined;
@@ -48,6 +66,59 @@ export function getProjectState(controller: EditorController) {
   return controller.getSafeState();
 }
 
+export function addTrack(controller: EditorController, args: unknown) {
+  const input = record(args);
+  const kind = requiredString(input, "kind");
+  if (kind !== "video" && kind !== "audio") throw new Error("kindはvideoまたはaudioで指定してください");
+  const state = controller.getState();
+  const nextNumber = kind === "video" ? getVideoTracks(state).length + 1 : getAudioTracks(state).length + 1;
+  const name = optionalString(input, "name") ?? `${kind === "video" ? "V" : "A"}${nextNumber}`;
+  const trackId = makeId(`${kind}-track`);
+  controller.execute({ type: "addTrack", track: { id: trackId, kind, name } });
+  return { ok: true, trackId, kind, name };
+}
+
+export function removeTrack(controller: EditorController, args: unknown) {
+  const input = record(args);
+  const trackId = requiredString(input, "trackId");
+  controller.execute({ type: "removeTrack", trackId });
+  return { ok: true, trackId };
+}
+
+export function moveTrack(controller: EditorController, args: unknown) {
+  const input = record(args);
+  const trackId = requiredString(input, "trackId");
+  const toIndex = optionalInteger(input, "toIndex");
+  if (toIndex === undefined) throw new Error("toIndexは必須です");
+  controller.execute({ type: "moveTrack", trackId, toIndex });
+  return { ok: true, trackId, toIndex };
+}
+
+export function setTrackOpacity(controller: EditorController, args: unknown) {
+  const input = record(args);
+  const trackId = requiredString(input, "trackId");
+  const opacity = optionalNumber(input, "opacity");
+  if (opacity === undefined) throw new Error("opacityは必須です");
+  controller.execute({ type: "setTrackOpacity", trackId, opacity });
+  return { ok: true, trackId, opacity };
+}
+
+export function setTrackVisibility(controller: EditorController, args: unknown) {
+  const input = record(args);
+  const trackId = requiredString(input, "trackId");
+  const visible = requiredBoolean(input, "visible");
+  controller.execute({ type: "setTrackVisibility", trackId, visible });
+  return { ok: true, trackId, visible };
+}
+
+export function setTrackMute(controller: EditorController, args: unknown) {
+  const input = record(args);
+  const trackId = requiredString(input, "trackId");
+  const muted = requiredBoolean(input, "muted");
+  controller.execute({ type: "setTrackMute", trackId, muted });
+  return { ok: true, trackId, muted };
+}
+
 export function addClip(controller: EditorController, args: unknown) {
   const input = record(args);
   const assetId = requiredString(input, "assetId");
@@ -58,15 +129,17 @@ export function addClip(controller: EditorController, args: unknown) {
   const sourceInUs = optionalInteger(input, "sourceInUs") ?? 0;
   const sourceOutUs = optionalInteger(input, "sourceOutUs") ?? asset.durationUs;
   const atIndex = optionalInteger(input, "atIndex");
+  const trackId = optionalString(input, "trackId");
   const clipId = makeId("clip");
 
   controller.execute({
     type: "addClip",
     clip: { id: clipId, assetId, sourceInUs, sourceOutUs },
     ...(atIndex === undefined ? {} : { atIndex }),
+    ...(trackId === undefined ? {} : { trackId }),
   });
 
-  return { ok: true, clipId };
+  return { ok: true, clipId, ...(trackId ? { trackId } : {}) };
 }
 
 export function moveClip(controller: EditorController, args: unknown) {
@@ -76,6 +149,20 @@ export function moveClip(controller: EditorController, args: unknown) {
   if (toIndex === undefined) throw new Error("toIndexは必須です");
   controller.execute({ type: "moveClip", clipId, toIndex });
   return { ok: true, clipId, toIndex };
+}
+
+export function moveClipToTrack(controller: EditorController, args: unknown) {
+  const input = record(args);
+  const clipId = requiredString(input, "clipId");
+  const trackId = requiredString(input, "trackId");
+  const toIndex = optionalInteger(input, "toIndex");
+  controller.execute({
+    type: "moveClipToTrack",
+    clipId,
+    trackId,
+    ...(toIndex === undefined ? {} : { toIndex }),
+  });
+  return { ok: true, clipId, trackId, ...(toIndex === undefined ? {} : { toIndex }) };
 }
 
 export function trimClip(controller: EditorController, args: unknown) {
@@ -130,11 +217,17 @@ export function deleteClip(controller: EditorController, args: unknown) {
 export function setAudio(controller: EditorController, args: unknown) {
   const input = record(args);
   const assetId = requiredString(input, "assetId");
+  const trackId = optionalString(input, "trackId");
   const state = controller.getState();
   const asset = state.assets.find((candidate) => candidate.id === assetId);
   if (!asset) throw new Error(`Asset ${assetId} が見つかりません`);
 
-  const existing = state.audioClip?.assetId === assetId ? state.audioClip : null;
+  const track = trackId
+    ? getAudioTracks(state).find((candidate) => candidate.id === trackId)
+    : getDefaultAudioTrack(state);
+  if (!track) throw new Error(`Audio track ${trackId ?? "A1"} が見つかりません`);
+  const current = track.clips[0] ?? null;
+  const existing = current?.assetId === assetId ? current : null;
   const timelineStartUs = optionalInteger(input, "timelineStartUs") ?? existing?.timelineStartUs ?? 0;
   const sourceInUs = optionalInteger(input, "sourceInUs") ?? existing?.sourceInUs ?? 0;
   const sourceOutUs = optionalInteger(input, "sourceOutUs") ?? existing?.sourceOutUs ?? asset.durationUs;
@@ -142,6 +235,7 @@ export function setAudio(controller: EditorController, args: unknown) {
 
   controller.execute({
     type: "setAudio",
+    trackId: track.id,
     audio: {
       id: existing?.id ?? makeId("audio-clip"),
       assetId,
@@ -152,12 +246,14 @@ export function setAudio(controller: EditorController, args: unknown) {
     },
   });
 
-  return { ok: true, assetId, timelineStartUs, volume };
+  return { ok: true, trackId: track.id, assetId, timelineStartUs, volume };
 }
 
-export function clearAudio(controller: EditorController) {
-  controller.execute({ type: "setAudio", audio: null });
-  return { ok: true };
+export function clearAudio(controller: EditorController, args: unknown = {}) {
+  const input = record(args);
+  const trackId = optionalString(input, "trackId");
+  controller.execute({ type: "setAudio", audio: null, ...(trackId ? { trackId } : {}) });
+  return { ok: true, ...(trackId ? { trackId } : {}) };
 }
 
 export function setCanvas(controller: EditorController, args: unknown) {

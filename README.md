@@ -19,34 +19,43 @@ Premiere Proのような総合編集ソフトを再現するのではなく、MV
 ### 編集
 
 - local video / audioの読み込み
-- 1 video track（V1）+ 1 audio track（A1）
+- 複数video track（V1 / V2 / ...）+ 複数audio track（A1 / A2 / ...）
+- video / audio trackの追加・並べ替え
+- video trackの表示/非表示・opacity
+- audio trackのmute
+- video clipを別video trackへ移動
 - clip追加・並べ替え・trim・削除
 - 再生ヘッド位置でのclip分割
 - `⌘K` / `Ctrl+K` で選択clipを再生ヘッド位置で分割
-- `Shift+D` で選択clipと次clipの0.5秒cross dissolveを切替
+- `Shift+D` で同一track上の選択clipと次clipの0.5秒cross dissolveを切替
 - clip右クリックで再生速度変更（0.25× / 0.5× / 0.75× / 1× / 1.25× / 1.5× / 2×）
 - clip右クリックでfade in / fade out（なし / 0.25秒 / 0.5秒 / 1秒 / 2秒）
 - audio start / volume / remove
 - cross dissolve追加・削除
-- 実時間に比例したtimeline表示
+- 実時間に比例したmulti-track timeline表示
 - 再生ヘッド / timeline seek
 - timeline表示倍率
 
 ### Preview
 
 - actual local videoのplay / pause / seek
+- 複数video trackの実合成
+- video track opacity / visibilityの即時反映
 - clip境界を越える再生
 - trim / split / speed / fade / move / deleteの即時反映
-- audio同期
+- 複数audio trackの同時再生・mute
 - clip fadeとcross dissolveを同じopacity計算で合成
-- 2 video layerによる実cross dissolve
 - project canvas: 16:9 / 9:16 / 1:1 / 4:5
 - source fit: 全体表示（contain）/ 画面いっぱい（cover）
 
+video trackはorderが高いほど上に合成されます。cross dissolveは同一video track内の隣接clip間だけに設定します。
+
 ### 書き出し
 
-- 現在のV1 / A1をブラウザ内で動画へ書き出し
-- trim / split / playback speed / fade / clip順 / canvas / contain-cover / cross dissolve / audioを反映
+- 現在の複数video / audio trackをブラウザ内で動画へ書き出し
+- video track order / opacity / visibilityを反映
+- 複数audio trackをWeb Audioでmixし、mute / clip volumeを反映
+- trim / split / playback speed / fade / clip順 / canvas / contain-cover / cross dissolveを反映
 - browser-native `canvas.captureStream()` + Web Audio + MediaRecorder
 - 対応環境ではMP4を優先し、必要に応じてWebMへfallback
 - server uploadなし
@@ -58,11 +67,20 @@ DOGAGAは、現在開いている編集ページ自身がWebMCP toolsを公開�
 
 人間UIとbrowser agentは**同じEditor state / 同じcommand executor**を共同操作します。別MCP serverやagent専用timelineは使いません。
 
-現在のtools:
+Editor stateの正本は `tracks[]` です。既存のagent workflowとの互換用に、safe stateではV1/A1由来のlegacy viewも当面返します。
+
+現在の20 tools:
 
 - `get_project_state`
+- `add_track`
+- `remove_track`
+- `move_track`
+- `set_track_opacity`
+- `set_track_visibility`
+- `set_track_mute`
 - `add_clip`
 - `move_clip`
+- `move_clip_to_track`
 - `trim_clip`
 - `split_clip`
 - `set_clip_speed`
@@ -74,7 +92,9 @@ DOGAGAは、現在開いている編集ページ自身がWebMCP toolsを公開�
 - `add_transition`
 - `remove_transition`
 
-WebMCP対応環境では、人間が素材を読み込んだあと、agentがstateを読み、編集し、人間の修正後に再読取して続きを編集できます。
+既存toolは互換性を維持し、`add_clip` で `trackId` を省略するとV1、`set_audio` / `clear_audio` で省略するとA1を使います。
+
+WebMCP対応環境では、人間が素材を読み込んだあと、agentがstateを読み、track追加・配置・編集を行い、人間の修正後に再読取して続きを編集できます。
 
 ## Privacy / local-first
 
@@ -128,12 +148,13 @@ GitHub Actionsもclean checkout + Node.js 22 + `npm ci` で同じ検証を行い
 compact production v0は機能を意図的に絞っています。現在の主な制約:
 
 - 編集sessionの永続保存 / relinkは未実装
-- multi-video-track / multi-audio-trackは未実装
+- video/audio trackのlock UIは未実装
 - audio clipのfade / 再生速度変更は未実装
+- arbitrary clip positioning / gaps / drag trimは未実装
 - waveform / lyrics / captions / advanced effectsは未実装
 - frame-perfectな業務用NLE精度は目標外
 
-次の重要な製品課題は、**multi-track化と、実利用で見つかるUX修正**です。
+次の重要な製品課題は、**multi-trackの実ブラウザQA、Chrome/WebMCP互換性確認、実利用で見つかるUX修正**です。
 
 ## WebMCP Challenge 2026
 

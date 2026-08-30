@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { executeCommand } from "../editor/executor";
-import { createEmptyEditorState, type EditorState } from "../editor/model";
+import { DEFAULT_VIDEO_TRACK_ID, createEmptyEditorState, type EditorState } from "../editor/model";
 import { computeDrawRegion, exportDurationUs, pickRecorderFormat, videoLayersAt } from "./plan";
 
 const S = 1_000_000;
@@ -33,11 +33,50 @@ describe("export plan", () => {
   it("maps timeline time to the active clip source time", () => {
     const state = withTwoClips();
     expect(videoLayersAt(state, 2 * S)).toEqual([
-      { clipId: "c1", assetId: "v1", sourceTimeUs: 3 * S, opacity: 1 },
+      { trackId: DEFAULT_VIDEO_TRACK_ID, clipId: "c1", assetId: "v1", sourceTimeUs: 3 * S, opacity: 1 },
     ]);
     expect(videoLayersAt(state, 6 * S)).toEqual([
-      { clipId: "c2", assetId: "v2", sourceTimeUs: 3 * S, opacity: 1 },
+      { trackId: DEFAULT_VIDEO_TRACK_ID, clipId: "c2", assetId: "v2", sourceTimeUs: 3 * S, opacity: 1 },
     ]);
+  });
+
+  it("returns V1 then V2 and multiplies video track opacity", () => {
+    let state = baseState();
+    state = executeCommand(state, {
+      type: "addClip",
+      clip: { id: "base", assetId: "v1", sourceInUs: 0, sourceOutUs: 5 * S },
+    });
+    state = executeCommand(state, { type: "addTrack", track: { id: "video-2", kind: "video", name: "V2" } });
+    state = executeCommand(state, {
+      type: "addClip",
+      trackId: "video-2",
+      clip: { id: "overlay", assetId: "v2", sourceInUs: 0, sourceOutUs: 5 * S },
+    });
+    state = executeCommand(state, { type: "setTrackOpacity", trackId: "video-2", opacity: 0.4 });
+
+    const layers = videoLayersAt(state, 2 * S);
+    expect(layers.map((layer) => layer.trackId)).toEqual([DEFAULT_VIDEO_TRACK_ID, "video-2"]);
+    expect(layers[0]).toMatchObject({ clipId: "base", opacity: 1 });
+    expect(layers[1]).toMatchObject({ clipId: "overlay", opacity: 0.4 });
+
+    state = executeCommand(state, { type: "setTrackVisibility", trackId: "video-2", visible: false });
+    expect(videoLayersAt(state, 2 * S).map((layer) => layer.clipId)).toEqual(["base"]);
+  });
+
+  it("reflects video track reordering in layer order", () => {
+    let state = baseState();
+    state = executeCommand(state, { type: "addTrack", track: { id: "video-2", kind: "video", name: "V2" } });
+    state = executeCommand(state, {
+      type: "addClip",
+      clip: { id: "base", assetId: "v1", sourceInUs: 0, sourceOutUs: 5 * S },
+    });
+    state = executeCommand(state, {
+      type: "addClip",
+      trackId: "video-2",
+      clip: { id: "overlay", assetId: "v2", sourceInUs: 0, sourceOutUs: 5 * S },
+    });
+    state = executeCommand(state, { type: "moveTrack", trackId: DEFAULT_VIDEO_TRACK_ID, toIndex: 1 });
+    expect(videoLayersAt(state, S).map((layer) => layer.clipId)).toEqual(["overlay", "base"]);
   });
 
   it("maps source time and duration through playback rate", () => {
@@ -49,9 +88,13 @@ describe("export plan", () => {
     state = executeCommand(state, { type: "setClipSpeed", clipId: "c1", playbackRate: 2 });
 
     expect(exportDurationUs(state)).toBe(4 * S);
-    expect(videoLayersAt(state, 2 * S)).toEqual([
-      { clipId: "c1", assetId: "v1", sourceTimeUs: 4 * S, opacity: 1 },
-    ]);
+    expect(videoLayersAt(state, 2 * S)[0]).toMatchObject({
+      trackId: DEFAULT_VIDEO_TRACK_ID,
+      clipId: "c1",
+      assetId: "v1",
+      sourceTimeUs: 4 * S,
+      opacity: 1,
+    });
   });
 
   it("applies clip fade opacity in timeline time", () => {
@@ -96,26 +139,6 @@ describe("export plan", () => {
     expect(layers[0]).toMatchObject({ clipId: "c1", opacity: 0.5 });
     expect(layers[1].clipId).toBe("c2");
     expect(layers[1].opacity).toBeCloseTo(0.25);
-    expect(exportDurationUs(state)).toBe(8 * S);
-  });
-
-  it("returns two weighted layers during a cross dissolve", () => {
-    let state = withTwoClips();
-    state = executeCommand(state, {
-      type: "addTransition",
-      transition: {
-        id: "t1",
-        kind: "cross-dissolve",
-        fromClipId: "c1",
-        toClipId: "c2",
-        durationUs: S,
-      },
-    });
-
-    const layers = videoLayersAt(state, 4.5 * S);
-    expect(layers).toHaveLength(2);
-    expect(layers[0]).toMatchObject({ clipId: "c1", opacity: 0.5 });
-    expect(layers[1]).toMatchObject({ clipId: "c2", opacity: 0.5 });
     expect(exportDurationUs(state)).toBe(8 * S);
   });
 

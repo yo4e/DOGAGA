@@ -8,16 +8,25 @@ import {
 } from "react";
 import type { EditorController } from "../editor/controller";
 import {
+  DEFAULT_AUDIO_TRACK_ID,
+  DEFAULT_VIDEO_TRACK_ID,
   FADE_DURATIONS_US,
   PLAYBACK_RATES,
   clipDurationUs,
+  findVideoClipLocation,
+  getAudioTracks,
+  getVideoTracks,
   timelineDurationUs,
   type EditorState,
+  type EditorTrack,
+  type VideoTrack,
 } from "../editor/model";
 import "./context-menu.css";
 
 const US = 1_000_000;
 const SCALE_OPTIONS = [24, 48, 80] as const;
+const RULER_HEIGHT = 38;
+const TRACK_HEIGHT = 76;
 
 type Props = {
   state: EditorState;
@@ -31,6 +40,12 @@ type ClipMenu = {
   x: number;
   y: number;
 };
+
+function newId(prefix: string): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? `${prefix}-${crypto.randomUUID()}`
+    : `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 function timestamp(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
@@ -50,10 +65,17 @@ function fadeLabel(durationUs: number): string {
   return durationUs === 0 ? "なし" : `${durationUs / US}秒`;
 }
 
+function trackRows(state: EditorState): EditorTrack[] {
+  return [...getVideoTracks(state), ...getAudioTracks(state)];
+}
+
 export function Timeline({ state, controller, selectedClipId, onSelectClip }: Props) {
   const [pixelsPerSecond, setPixelsPerSecond] = useState<(typeof SCALE_OPTIONS)[number]>(48);
   const [clipMenu, setClipMenu] = useState<ClipMenu | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const videoTracks = useMemo(() => getVideoTracks(state), [state.tracks]);
+  const audioTracks = useMemo(() => getAudioTracks(state), [state.tracks]);
+  const rows = useMemo(() => trackRows(state), [state.tracks]);
   const durationUs = timelineDurationUs(state);
   const contentSeconds = Math.max(10, Math.ceil(durationUs / US));
   const canvasWidth = Math.max(720, contentSeconds * pixelsPerSecond);
@@ -65,12 +87,13 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
   );
   const canvasStyle = {
     width: `${canvasWidth}px`,
+    height: `${RULER_HEIGHT + rows.length * TRACK_HEIGHT}px`,
     "--second-width": `${pixelsPerSecond}px`,
   } as CSSProperties & Record<"--second-width", string>;
 
   useEffect(() => {
     const scroll = scrollRef.current;
-    const selected = state.videoClips.find((clip) => clip.id === selectedClipId);
+    const selected = selectedClipId ? findVideoClipLocation(state, selectedClipId)?.clip : undefined;
     if (!scroll || !selected) return;
 
     const padding = 24;
@@ -85,7 +108,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
     } else if (clipEnd > scroll.scrollLeft + scroll.clientWidth - padding) {
       scroll.scrollLeft = Math.max(0, clipEnd - scroll.clientWidth + padding);
     }
-  }, [pixelsPerSecond, selectedClipId, state.videoClips]);
+  }, [pixelsPerSecond, selectedClipId, state.tracks]);
 
   useEffect(() => {
     if (!clipMenu) return;
@@ -107,35 +130,118 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
     controller.setPlayheadUs(Math.min(durationUs, nextUs));
   };
 
-  const menuClip = clipMenu
-    ? state.videoClips.find((clip) => clip.id === clipMenu.clipId) ?? null
-    : null;
+  const menuLocation = clipMenu ? findVideoClipLocation(state, clipMenu.clipId) ?? null : null;
+  const menuClip = menuLocation?.clip ?? null;
   const allowedFadeDurations = menuClip
     ? FADE_DURATIONS_US.filter((duration) => duration <= clipDurationUs(menuClip))
     : FADE_DURATIONS_US;
 
+  const addTrack = (kind: "video" | "audio") => {
+    const index = kind === "video" ? videoTracks.length + 1 : audioTracks.length + 1;
+    controller.execute({
+      type: "addTrack",
+      track: {
+        id: newId(`${kind}-track`),
+        kind,
+        name: `${kind === "video" ? "V" : "A"}${index}`,
+      },
+    });
+  };
+
+  const renderTrackControls = (track: EditorTrack) => {
+    const sameKind = track.kind === "video" ? videoTracks : audioTracks;
+    const index = sameKind.findIndex((candidate) => candidate.id === track.id);
+    const isDefault = track.id === DEFAULT_VIDEO_TRACK_ID || track.id === DEFAULT_AUDIO_TRACK_ID;
+    return (
+      <div className="track-label" key={track.id}>
+        <div className="track-label-title">
+          <strong>{track.name}</strong>
+          <span>{track.kind === "video" ? "動画" : "音声"}</span>
+        </div>
+        <div className="track-mini-controls">
+          {track.kind === "video" ? (
+            <>
+              <button
+                type="button"
+                title={track.visible ? "非表示にする" : "表示する"}
+                onClick={() => controller.execute({ type: "setTrackVisibility", trackId: track.id, visible: !track.visible })}
+              >
+                {track.visible ? "👁" : "－"}
+              </button>
+              <input
+                aria-label={`${track.name} opacity`}
+                title={`Opacity ${Math.round(track.opacity * 100)}%`}
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={track.opacity}
+                onChange={(event) => controller.execute({
+                  type: "setTrackOpacity",
+                  trackId: track.id,
+                  opacity: Number(event.target.value),
+                })}
+              />
+            </>
+          ) : (
+            <button
+              type="button"
+              title={track.muted ? "ミュート解除" : "ミュート"}
+              onClick={() => controller.execute({ type: "setTrackMute", trackId: track.id, muted: !track.muted })}
+            >
+              {track.muted ? "M" : "♪"}
+            </button>
+          )}
+          <button
+            type="button"
+            title="上へ"
+            disabled={index === sameKind.length - 1}
+            onClick={() => controller.execute({ type: "moveTrack", trackId: track.id, toIndex: index + 1 })}
+          >↑</button>
+          <button
+            type="button"
+            title="下へ"
+            disabled={index === 0}
+            onClick={() => controller.execute({ type: "moveTrack", trackId: track.id, toIndex: index - 1 })}
+          >↓</button>
+          {!isDefault && (
+            <button
+              type="button"
+              title={track.clips.length ? "空にすると削除できます" : "trackを削除"}
+              disabled={track.clips.length > 0}
+              onClick={() => controller.execute({ type: "removeTrack", trackId: track.id })}
+            >×</button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="timeline-editor">
       <div className="timeline-toolbar">
-        <p>クリップを選ぶと下に編集操作が表示されます。右クリックで再生速度・フェードを変更できます。</p>
-        <label>
-          表示幅
-          <select
-            value={pixelsPerSecond}
-            onChange={(event) => setPixelsPerSecond(Number(event.target.value) as (typeof SCALE_OPTIONS)[number])}
-          >
-            <option value={24}>広く見る</option>
-            <option value={48}>標準</option>
-            <option value={80}>細かく見る</option>
-          </select>
-        </label>
+        <p>右クリックで速度・フェード・移動先trackを変更できます。</p>
+        <div className="timeline-toolbar-actions">
+          <button type="button" onClick={() => addTrack("video")}>+ Video</button>
+          <button type="button" onClick={() => addTrack("audio")}>+ Audio</button>
+          <label>
+            表示幅
+            <select
+              value={pixelsPerSecond}
+              onChange={(event) => setPixelsPerSecond(Number(event.target.value) as (typeof SCALE_OPTIONS)[number])}
+            >
+              <option value={24}>広く見る</option>
+              <option value={48}>標準</option>
+              <option value={80}>細かく見る</option>
+            </select>
+          </label>
+        </div>
       </div>
 
       <div className="timeline-workspace">
-        <div className="timeline-sidebar" aria-hidden="true">
-          <div className="timeline-corner">TIME</div>
-          <div className="track-label"><strong>V1</strong><span>動画</span></div>
-          <div className="track-label audio"><strong>A1</strong><span>音楽</span></div>
+        <div className="timeline-sidebar">
+          <div className="timeline-corner">TRACK / TIME</div>
+          {rows.map(renderTrackControls)}
         </div>
 
         <div className="timeline-scroll" ref={scrollRef}>
@@ -153,79 +259,93 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
               ))}
             </button>
 
-            <div className="timeline-lane video-lane" onClick={seekFromClick}>
-              {state.videoClips.map((clip, index) => {
-                const asset = state.assets.find((candidate) => candidate.id === clip.assetId);
-                const duration = clipDurationUs(clip);
+            {rows.map((track, rowIndex) => {
+              const top = RULER_HEIGHT + rowIndex * TRACK_HEIGHT;
+              if (track.kind === "video") {
                 return (
-                  <button
-                    type="button"
-                    className={`timeline-clip${selectedClipId === clip.id ? " selected" : ""}`}
-                    key={clip.id}
-                    aria-pressed={selectedClipId === clip.id}
-                    title={`${asset?.name ?? clip.assetId} · ${(duration / US).toFixed(2)}秒 · ${clip.playbackRate}× · fade ${fadeLabel(clip.fadeInUs)} / ${fadeLabel(clip.fadeOutUs)}`}
-                    style={{
-                      left: (clip.timelineStartUs / US) * pixelsPerSecond,
-                      width: Math.max(28, (duration / US) * pixelsPerSecond),
-                      zIndex: selectedClipId === clip.id ? 100 : index + 1,
-                    }}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onSelectClip(clip.id);
-                    }}
-                    onContextMenu={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      onSelectClip(clip.id);
-                      setClipMenu({
-                        clipId: clip.id,
-                        x: Math.min(event.clientX, Math.max(8, window.innerWidth - 210)),
-                        y: Math.min(event.clientY, Math.max(8, window.innerHeight - 260)),
-                      });
-                    }}
+                  <div
+                    className={`timeline-lane video-lane${track.visible ? "" : " track-disabled"}`}
+                    key={track.id}
+                    style={{ top }}
+                    onClick={seekFromClick}
                   >
-                    <strong>{index + 1}. {asset?.name ?? clip.assetId}</strong>
-                    <span>{(duration / US).toFixed(2)}s · {clip.playbackRate}×</span>
-                  </button>
+                    {track.clips.map((clip, index) => {
+                      const asset = state.assets.find((candidate) => candidate.id === clip.assetId);
+                      const clipDuration = clipDurationUs(clip);
+                      return (
+                        <button
+                          type="button"
+                          className={`timeline-clip${selectedClipId === clip.id ? " selected" : ""}`}
+                          key={clip.id}
+                          aria-pressed={selectedClipId === clip.id}
+                          title={`${asset?.name ?? clip.assetId} · ${(clipDuration / US).toFixed(2)}秒 · ${clip.playbackRate}× · fade ${fadeLabel(clip.fadeInUs)} / ${fadeLabel(clip.fadeOutUs)}`}
+                          style={{
+                            left: (clip.timelineStartUs / US) * pixelsPerSecond,
+                            width: Math.max(28, (clipDuration / US) * pixelsPerSecond),
+                            zIndex: selectedClipId === clip.id ? 100 : index + 1,
+                          }}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onSelectClip(clip.id);
+                          }}
+                          onContextMenu={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            onSelectClip(clip.id);
+                            setClipMenu({
+                              clipId: clip.id,
+                              x: Math.min(event.clientX, Math.max(8, window.innerWidth - 220)),
+                              y: Math.min(event.clientY, Math.max(8, window.innerHeight - 340)),
+                            });
+                          }}
+                        >
+                          <strong>{index + 1}. {asset?.name ?? clip.assetId}</strong>
+                          <span>{(clipDuration / US).toFixed(2)}s · {clip.playbackRate}×</span>
+                        </button>
+                      );
+                    })}
+                    {!track.clips.length && <span className="track-empty">{track.name} は空です</span>}
+                    {state.transitions.map((transition) => {
+                      const toClip = track.clips.find((clip) => clip.id === transition.toClipId);
+                      if (!toClip) return null;
+                      return (
+                        <span
+                          className="transition-marker"
+                          key={transition.id}
+                          title={`クロスディゾルブ ${(transition.durationUs / US).toFixed(1)}秒`}
+                          style={{ left: (toClip.timelineStartUs / US) * pixelsPerSecond }}
+                        >D</span>
+                      );
+                    })}
+                  </div>
                 );
-              })}
-              {!state.videoClips.length && <span className="track-empty">動画を追加するとV1へ並びます</span>}
-              {state.transitions.map((transition) => {
-                const toClip = state.videoClips.find((clip) => clip.id === transition.toClipId);
-                if (!toClip) return null;
-                return (
-                  <span
-                    className="transition-marker"
-                    key={transition.id}
-                    title={`クロスディゾルブ ${(transition.durationUs / US).toFixed(1)}秒`}
-                    style={{ left: (toClip.timelineStartUs / US) * pixelsPerSecond }}
-                  >
-                    D
-                  </span>
-                );
-              })}
-            </div>
+              }
 
-            <div className="timeline-lane audio-lane" onClick={seekFromClick}>
-              {state.audioClip ? (
+              return (
                 <div
-                  className="timeline-audio"
-                  title={`${state.assets.find((asset) => asset.id === state.audioClip?.assetId)?.name ?? "Audio"} · 音量 ${Math.round(state.audioClip.volume * 100)}%`}
-                  style={{
-                    left: (state.audioClip.timelineStartUs / US) * pixelsPerSecond,
-                    width: Math.max(
-                      28,
-                      ((state.audioClip.sourceOutUs - state.audioClip.sourceInUs) / US) * pixelsPerSecond,
-                    ),
-                  }}
+                  className={`timeline-lane audio-lane${track.muted ? " track-disabled" : ""}`}
+                  key={track.id}
+                  style={{ top }}
+                  onClick={seekFromClick}
                 >
-                  <strong>{state.assets.find((asset) => asset.id === state.audioClip?.assetId)?.name ?? "Audio"}</strong>
-                  <span>音量 {Math.round(state.audioClip.volume * 100)}%</span>
+                  {track.clips.map((clip) => (
+                    <div
+                      className="timeline-audio"
+                      key={clip.id}
+                      title={`${state.assets.find((asset) => asset.id === clip.assetId)?.name ?? "Audio"} · 音量 ${Math.round(clip.volume * 100)}%`}
+                      style={{
+                        left: (clip.timelineStartUs / US) * pixelsPerSecond,
+                        width: Math.max(28, ((clip.sourceOutUs - clip.sourceInUs) / US) * pixelsPerSecond),
+                      }}
+                    >
+                      <strong>{state.assets.find((asset) => asset.id === clip.assetId)?.name ?? "Audio"}</strong>
+                      <span>音量 {Math.round(clip.volume * 100)}%</span>
+                    </div>
+                  ))}
+                  {!track.clips.length && <span className="track-empty">{track.name} は空です</span>}
                 </div>
-              ) : (
-                <span className="track-empty">音源を設定するとA1へ表示されます</span>
-              )}
-            </div>
+              );
+            })}
 
             <div
               className="timeline-playhead"
@@ -238,7 +358,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
         </div>
       </div>
 
-      {clipMenu && menuClip && (
+      {clipMenu && menuClip && menuLocation && (
         <div
           className="clip-context-menu"
           role="dialog"
@@ -247,6 +367,20 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
           onPointerDown={(event) => event.stopPropagation()}
           onContextMenu={(event) => event.preventDefault()}
         >
+          <label>
+            Video track
+            <select
+              value={menuLocation.track.id}
+              onChange={(event) => {
+                controller.execute({ type: "moveClipToTrack", clipId: menuClip.id, trackId: event.target.value });
+                setClipMenu(null);
+              }}
+            >
+              {videoTracks.map((track) => (
+                <option key={track.id} value={track.id}>{track.name}</option>
+              ))}
+            </select>
+          </label>
           <label>
             再生速度
             <select
@@ -295,7 +429,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
               ))}
             </select>
           </label>
-          <small>右クリックしたclipだけに適用。fadeはtimeline時間。</small>
+          <small>速度・fadeはclip単位。track移動ではsource rangeを保持。</small>
         </div>
       )}
     </div>

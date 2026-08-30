@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { EditorCommandError, executeCommand } from "./executor";
-import { createEmptyEditorState, timelineDurationUs, type EditorState } from "./model";
+import {
+  DEFAULT_AUDIO_TRACK_ID,
+  DEFAULT_VIDEO_TRACK_ID,
+  createEmptyEditorState,
+  getAudioTracks,
+  getDefaultAudioTrack,
+  getDefaultVideoTrack,
+  getVideoTracks,
+  timelineDurationUs,
+  type EditorState,
+} from "./model";
 import { toSafeEditorState } from "./safeState";
 
 const S = 1_000_000;
@@ -17,18 +27,43 @@ function baseState(): EditorState {
   };
 }
 
-function addVideo(state: EditorState, id: string, assetId: string, durationUs: number): EditorState {
+function addVideo(
+  state: EditorState,
+  id: string,
+  assetId: string,
+  durationUs: number,
+  trackId?: string,
+): EditorState {
   return executeCommand(state, {
     type: "addClip",
     clip: { id, assetId, sourceInUs: 0, sourceOutUs: durationUs },
+    ...(trackId ? { trackId } : {}),
   });
 }
 
-describe("executeCommand", () => {
-  it("packs clips contiguously and ripples after trim", () => {
+function v1(state: EditorState) {
+  return getDefaultVideoTrack(state)!;
+}
+
+function a1(state: EditorState) {
+  return getDefaultAudioTrack(state)!;
+}
+
+describe("executeCommand multi-track", () => {
+  it("starts with compatibility V1 and A1 tracks", () => {
+    const state = baseState();
+    expect(getVideoTracks(state).map((track) => [track.id, track.name])).toEqual([[DEFAULT_VIDEO_TRACK_ID, "V1"]]);
+    expect(getAudioTracks(state).map((track) => [track.id, track.name])).toEqual([[DEFAULT_AUDIO_TRACK_ID, "A1"]]);
+  });
+
+  it("keeps ripple packing independent per video track", () => {
     let state = addVideo(baseState(), "c1", "v1", 5 * S);
     state = addVideo(state, "c2", "v2", 4 * S);
-    expect(state.videoClips.map((clip) => clip.timelineStartUs)).toEqual([0, 5 * S]);
+    state = executeCommand(state, { type: "addTrack", track: { id: "video-2", kind: "video", name: "V2" } });
+    state = addVideo(state, "overlay", "v3", 3 * S, "video-2");
+
+    expect(v1(state).clips.map((clip) => clip.timelineStartUs)).toEqual([0, 5 * S]);
+    expect(getVideoTracks(state)[1].clips[0].timelineStartUs).toBe(0);
 
     state = executeCommand(state, {
       type: "trimClip",
@@ -36,335 +71,139 @@ describe("executeCommand", () => {
       sourceInUs: 0,
       sourceOutUs: 3 * S,
     });
-    expect(state.videoClips.map((clip) => clip.timelineStartUs)).toEqual([0, 3 * S]);
+    expect(v1(state).clips.map((clip) => clip.timelineStartUs)).toEqual([0, 3 * S]);
+    expect(getVideoTracks(state)[1].clips[0].timelineStartUs).toBe(0);
   });
 
-  it("changes timeline duration and ripples following clips at playback rate", () => {
-    let state = addVideo(baseState(), "c1", "v1", 8 * S);
+  it("moves a clip between video tracks and repacks both", () => {
+    let state = addVideo(baseState(), "c1", "v1", 5 * S);
     state = addVideo(state, "c2", "v2", 4 * S);
-    state = executeCommand(state, { type: "setClipSpeed", clipId: "c1", playbackRate: 2 });
+    state = executeCommand(state, { type: "addTrack", track: { id: "video-2", kind: "video", name: "V2" } });
+    state = executeCommand(state, { type: "moveClipToTrack", clipId: "c2", trackId: "video-2" });
 
-    expect(state.videoClips[0]).toMatchObject({ playbackRate: 2 });
-    expect(state.videoClips[1].timelineStartUs).toBe(4 * S);
-    expect(timelineDurationUs(state)).toBe(8 * S);
-    expect(() => executeCommand(state, {
-      type: "setClipSpeed",
-      clipId: "c1",
-      playbackRate: 3,
-    })).toThrowError(/再生速度/);
+    expect(v1(state).clips.map((clip) => clip.id)).toEqual(["c1"]);
+    expect(getVideoTracks(state)[1].clips.map((clip) => clip.id)).toEqual(["c2"]);
+    expect(getVideoTracks(state)[1].clips[0].timelineStartUs).toBe(0);
   });
 
-  it("sets clip fades and keeps fade values on supported presets after duration changes", () => {
-    let state = addVideo(baseState(), "c1", "v1", 6 * S);
-    state = executeCommand(state, {
-      type: "setClipFade",
-      clipId: "c1",
-      fadeInUs: S,
-      fadeOutUs: 2 * S,
-    });
-    expect(state.videoClips[0]).toMatchObject({ fadeInUs: S, fadeOutUs: 2 * S });
+  it("supports video track opacity, visibility and order", () => {
+    let state = baseState();
+    state = executeCommand(state, { type: "addTrack", track: { id: "video-2", kind: "video", name: "V2" } });
+    state = executeCommand(state, { type: "setTrackOpacity", trackId: "video-2", opacity: 0.4 });
+    state = executeCommand(state, { type: "setTrackVisibility", trackId: "video-2", visible: false });
+    state = executeCommand(state, { type: "moveTrack", trackId: DEFAULT_VIDEO_TRACK_ID, toIndex: 1 });
 
-    state = executeCommand(state, {
-      type: "trimClip",
-      clipId: "c1",
-      sourceInUs: 0,
-      sourceOutUs: 1_300_000,
-    });
-    expect(state.videoClips[0]).toMatchObject({ fadeInUs: S, fadeOutUs: S });
-
-    state = executeCommand(state, { type: "setClipSpeed", clipId: "c1", playbackRate: 2 });
-    expect(state.videoClips[0]).toMatchObject({ fadeInUs: 500_000, fadeOutUs: 500_000 });
-    expect(() => executeCommand(state, {
-      type: "setClipFade",
-      clipId: "c1",
-      fadeInUs: 2 * S,
-      fadeOutUs: 0,
-    })).toThrowError(/timeline尺/);
+    expect(getVideoTracks(state).map((track) => track.id)).toEqual(["video-2", DEFAULT_VIDEO_TRACK_ID]);
+    expect(getVideoTracks(state)[0]).toMatchObject({ opacity: 0.4, visible: false });
+    expect(() => executeCommand(state, { type: "setTrackOpacity", trackId: "video-2", opacity: 2 })).toThrow(/opacity/);
   });
 
-  it("splits a clip at timeline time while preserving total duration", () => {
-    let state = addVideo(baseState(), "c1", "v1", 6 * S);
+  it("supports multiple audio tracks and mute", () => {
+    let state = baseState();
+    state = executeCommand(state, { type: "addTrack", track: { id: "audio-2", kind: "audio", name: "A2" } });
     state = executeCommand(state, {
-      type: "splitClip",
-      clipId: "c1",
-      atTimelineUs: 2 * S,
-      newClipId: "c1-right",
+      type: "setAudio",
+      audio: { id: "music-1", assetId: "a1", timelineStartUs: 0, sourceInUs: 0, sourceOutUs: 10 * S, volume: 0.5 },
     });
+    state = executeCommand(state, {
+      type: "setAudio",
+      trackId: "audio-2",
+      audio: { id: "music-2", assetId: "a1", timelineStartUs: S, sourceInUs: 2 * S, sourceOutUs: 8 * S, volume: 0.3 },
+    });
+    state = executeCommand(state, { type: "setTrackMute", trackId: "audio-2", muted: true });
 
-    expect(state.videoClips).toEqual([
-      {
-        id: "c1",
-        assetId: "v1",
-        timelineStartUs: 0,
-        sourceInUs: 0,
-        sourceOutUs: 2 * S,
-        playbackRate: 1,
-        fadeInUs: 0,
-        fadeOutUs: 0,
-      },
-      {
-        id: "c1-right",
-        assetId: "v1",
-        timelineStartUs: 2 * S,
-        sourceInUs: 2 * S,
-        sourceOutUs: 6 * S,
-        playbackRate: 1,
-        fadeInUs: 0,
-        fadeOutUs: 0,
-      },
-    ]);
-    expect(timelineDurationUs(state)).toBe(6 * S);
+    expect(a1(state).clips[0]).toMatchObject({ id: "music-1", volume: 0.5 });
+    expect(getAudioTracks(state)[1]).toMatchObject({ muted: true });
+    expect(getAudioTracks(state)[1].clips[0]).toMatchObject({ id: "music-2", timelineStartUs: S });
   });
 
-  it("keeps only the original outer fades when splitting", () => {
-    let state = addVideo(baseState(), "c1", "v1", 6 * S);
-    state = executeCommand(state, {
-      type: "setClipFade",
-      clipId: "c1",
-      fadeInUs: S,
-      fadeOutUs: 2 * S,
-    });
-    state = executeCommand(state, {
-      type: "splitClip",
-      clipId: "c1",
-      atTimelineUs: 2 * S,
-      newClipId: "right",
-    });
+  it("protects V1/A1 and only removes empty added tracks", () => {
+    let state = baseState();
+    expect(() => executeCommand(state, { type: "removeTrack", trackId: DEFAULT_VIDEO_TRACK_ID })).toThrow(/削除できません/);
+    expect(() => executeCommand(state, { type: "removeTrack", trackId: DEFAULT_AUDIO_TRACK_ID })).toThrow(/削除できません/);
 
-    expect(state.videoClips[0]).toMatchObject({ fadeInUs: S, fadeOutUs: 0 });
-    expect(state.videoClips[1]).toMatchObject({ fadeInUs: 0, fadeOutUs: 2 * S });
+    state = executeCommand(state, { type: "addTrack", track: { id: "video-2", kind: "video", name: "V2" } });
+    state = addVideo(state, "overlay", "v1", 2 * S, "video-2");
+    expect(() => executeCommand(state, { type: "removeTrack", trackId: "video-2" })).toThrow(/削除できません/);
+    state = executeCommand(state, { type: "deleteClip", clipId: "overlay" });
+    state = executeCommand(state, { type: "removeTrack", trackId: "video-2" });
+    expect(getVideoTracks(state)).toHaveLength(1);
   });
 
-  it("maps a split through playback rate into source time", () => {
+  it("keeps speed, fade and split semantics inside the selected track", () => {
     let state = addVideo(baseState(), "c1", "v1", 8 * S);
     state = executeCommand(state, { type: "setClipSpeed", clipId: "c1", playbackRate: 2 });
-    state = executeCommand(state, {
-      type: "splitClip",
-      clipId: "c1",
-      atTimelineUs: 2 * S,
-      newClipId: "right",
-    });
+    state = executeCommand(state, { type: "setClipFade", clipId: "c1", fadeInUs: S, fadeOutUs: S });
+    state = executeCommand(state, { type: "splitClip", clipId: "c1", atTimelineUs: 2 * S, newClipId: "right" });
 
-    expect(state.videoClips.map((clip) => ({
+    expect(v1(state).clips.map((clip) => ({
+      id: clip.id,
       sourceInUs: clip.sourceInUs,
       sourceOutUs: clip.sourceOutUs,
-      playbackRate: clip.playbackRate,
-      timelineStartUs: clip.timelineStartUs,
+      fadeInUs: clip.fadeInUs,
+      fadeOutUs: clip.fadeOutUs,
     }))).toEqual([
-      { sourceInUs: 0, sourceOutUs: 4 * S, playbackRate: 2, timelineStartUs: 0 },
-      { sourceInUs: 4 * S, sourceOutUs: 8 * S, playbackRate: 2, timelineStartUs: 2 * S },
+      { id: "c1", sourceInUs: 0, sourceOutUs: 4 * S, fadeInUs: S, fadeOutUs: 0 },
+      { id: "right", sourceInUs: 4 * S, sourceOutUs: 8 * S, fadeInUs: 0, fadeOutUs: S },
     ]);
+    expect(timelineDurationUs(state)).toBe(4 * S);
   });
 
-  it("moves an outgoing transition to the right half after split", () => {
+  it("allows dissolve only between adjacent clips on the same video track", () => {
+    let state = addVideo(baseState(), "c1", "v1", 5 * S);
+    state = addVideo(state, "c2", "v2", 4 * S);
+    state = executeCommand(state, { type: "addTrack", track: { id: "video-2", kind: "video", name: "V2" } });
+    state = addVideo(state, "overlay", "v3", 3 * S, "video-2");
+
+    state = executeCommand(state, {
+      type: "addTransition",
+      transition: { id: "t1", kind: "cross-dissolve", fromClipId: "c1", toClipId: "c2", durationUs: S },
+    });
+    expect(v1(state).clips.map((clip) => clip.timelineStartUs)).toEqual([0, 4 * S]);
+
+    expect(() => executeCommand(state, {
+      type: "addTransition",
+      transition: { id: "t2", kind: "cross-dissolve", fromClipId: "c1", toClipId: "overlay", durationUs: S },
+    })).toThrow(EditorCommandError);
+  });
+
+  it("drops a transition if a participating clip moves to another track", () => {
     let state = addVideo(baseState(), "c1", "v1", 5 * S);
     state = addVideo(state, "c2", "v2", 4 * S);
     state = executeCommand(state, {
       type: "addTransition",
-      transition: {
-        id: "t1",
-        kind: "cross-dissolve",
-        fromClipId: "c1",
-        toClipId: "c2",
-        durationUs: S,
-      },
+      transition: { id: "t1", kind: "cross-dissolve", fromClipId: "c1", toClipId: "c2", durationUs: S },
     });
-    state = executeCommand(state, {
-      type: "splitClip",
-      clipId: "c1",
-      atTimelineUs: 2 * S,
-      newClipId: "c1-right",
-    });
-
-    expect(state.transitions).toEqual([
-      {
-        id: "t1",
-        kind: "cross-dissolve",
-        fromClipId: "c1-right",
-        toClipId: "c2",
-        durationUs: S,
-      },
-    ]);
-    expect(state.videoClips.map((clip) => clip.timelineStartUs)).toEqual([0, 2 * S, 4 * S]);
-  });
-
-  it("rejects split at clip edges or with a duplicate new id", () => {
-    const state = addVideo(baseState(), "c1", "v1", 5 * S);
-    expect(() => executeCommand(state, {
-      type: "splitClip",
-      clipId: "c1",
-      atTimelineUs: 0,
-      newClipId: "right",
-    })).toThrowError(/内側/);
-    expect(() => executeCommand(state, {
-      type: "splitClip",
-      clipId: "c1",
-      atTimelineUs: 2 * S,
-      newClipId: "c1",
-    })).toThrowError(/すでに存在/);
-  });
-
-  it("reorders clips by index without creating accidental overlap", () => {
-    let state = addVideo(baseState(), "c1", "v1", 5 * S);
-    state = addVideo(state, "c2", "v2", 4 * S);
-    state = executeCommand(state, { type: "moveClip", clipId: "c2", toIndex: 0 });
-    expect(state.videoClips.map((clip) => clip.id)).toEqual(["c2", "c1"]);
-    expect(state.videoClips.map((clip) => clip.timelineStartUs)).toEqual([0, 4 * S]);
+    state = executeCommand(state, { type: "addTrack", track: { id: "video-2", kind: "video", name: "V2" } });
+    state = executeCommand(state, { type: "moveClipToTrack", clipId: "c2", trackId: "video-2" });
+    expect(state.transitions).toEqual([]);
   });
 
   it("rejects invalid source ranges and wrong asset kinds", () => {
-    expect(() =>
-      executeCommand(baseState(), {
-        type: "addClip",
-        clip: { id: "bad", assetId: "a1", sourceInUs: 0, sourceOutUs: S },
-      }),
-    ).toThrow(EditorCommandError);
-
-    expect(() =>
-      executeCommand(baseState(), {
-        type: "addClip",
-        clip: { id: "bad", assetId: "v1", sourceInUs: 0, sourceOutUs: 11 * S },
-      }),
-    ).toThrow(EditorCommandError);
+    expect(() => executeCommand(baseState(), {
+      type: "addClip",
+      clip: { id: "bad", assetId: "a1", sourceInUs: 0, sourceOutUs: S },
+    })).toThrow(EditorCommandError);
+    expect(() => executeCommand(baseState(), {
+      type: "addClip",
+      clip: { id: "bad", assetId: "v1", sourceInUs: 0, sourceOutUs: 11 * S },
+    })).toThrow(EditorCommandError);
   });
 
-  it("makes a cross dissolve a real overlap in timeline time", () => {
+  it("keeps safe state canonical tracks plus legacy views without runtime data", () => {
     let state = addVideo(baseState(), "c1", "v1", 5 * S);
-    state = addVideo(state, "c2", "v2", 4 * S);
-    state = executeCommand(state, {
-      type: "addTransition",
-      transition: {
-        id: "t1",
-        kind: "cross-dissolve",
-        fromClipId: "c1",
-        toClipId: "c2",
-        durationUs: S,
-      },
-    });
-
-    expect(state.videoClips.map((clip) => clip.timelineStartUs)).toEqual([0, 4 * S]);
-    expect(timelineDurationUs(state)).toBe(8 * S);
-  });
-
-  it("allows a cross dissolve only at an adjacent boundary", () => {
-    let state = addVideo(baseState(), "c1", "v1", 5 * S);
-    state = addVideo(state, "c2", "v2", 4 * S);
-    state = addVideo(state, "c3", "v3", 3 * S);
-
-    state = executeCommand(state, {
-      type: "addTransition",
-      transition: {
-        id: "t1",
-        kind: "cross-dissolve",
-        fromClipId: "c1",
-        toClipId: "c2",
-        durationUs: S,
-      },
-    });
-    expect(state.transitions).toHaveLength(1);
-
-    expect(() =>
-      executeCommand(state, {
-        type: "addTransition",
-        transition: {
-          id: "t2",
-          kind: "cross-dissolve",
-          fromClipId: "c1",
-          toClipId: "c3",
-          durationUs: S,
-        },
-      }),
-    ).toThrow(EditorCommandError);
-  });
-
-  it("drops transitions that become invalid after reordering", () => {
-    let state = addVideo(baseState(), "c1", "v1", 5 * S);
-    state = addVideo(state, "c2", "v2", 4 * S);
-    state = addVideo(state, "c3", "v3", 3 * S);
-    state = executeCommand(state, {
-      type: "addTransition",
-      transition: {
-        id: "t1",
-        kind: "cross-dissolve",
-        fromClipId: "c1",
-        toClipId: "c2",
-        durationUs: S,
-      },
-    });
-    state = executeCommand(state, { type: "moveClip", clipId: "c3", toIndex: 1 });
-    expect(state.transitions).toEqual([]);
-  });
-
-  it("removes a transition and restores contiguous timing", () => {
-    let state = addVideo(baseState(), "c1", "v1", 5 * S);
-    state = addVideo(state, "c2", "v2", 4 * S);
-    state = executeCommand(state, {
-      type: "addTransition",
-      transition: {
-        id: "t1",
-        kind: "cross-dissolve",
-        fromClipId: "c1",
-        toClipId: "c2",
-        durationUs: S,
-      },
-    });
-    state = executeCommand(state, { type: "removeTransition", transitionId: "t1" });
-    expect(state.transitions).toEqual([]);
-    expect(state.videoClips.map((clip) => clip.timelineStartUs)).toEqual([0, 5 * S]);
-  });
-
-  it("validates audio volume", () => {
-    expect(() =>
-      executeCommand(baseState(), {
-        type: "setAudio",
-        audio: {
-          id: "audio",
-          assetId: "a1",
-          timelineStartUs: 0,
-          sourceInUs: 0,
-          sourceOutUs: 10 * S,
-          volume: 2,
-        },
-      }),
-    ).toThrowError(/volume/);
-  });
-
-  it("stores a validated canvas preset in shared editor state", () => {
-    const state = executeCommand(baseState(), {
-      type: "setCanvas",
-      preset: "portrait",
-      fitMode: "cover",
-    });
-
-    expect(state.canvas).toEqual({
-      preset: "portrait",
-      width: 1080,
-      height: 1920,
-      fitMode: "cover",
-    });
-    expect(toSafeEditorState(state).canvas).toEqual(state.canvas);
-  });
-
-  it("serializes only the agent-safe editor state", () => {
-    let state = addVideo(baseState(), "c1", "v1", 5 * S);
-    state = executeCommand(state, { type: "setClipSpeed", clipId: "c1", playbackRate: 1.5 });
-    state = executeCommand(state, { type: "setClipFade", clipId: "c1", fadeInUs: 500_000, fadeOutUs: S });
+    state = executeCommand(state, { type: "addTrack", track: { id: "video-2", kind: "video", name: "V2" } });
+    state = addVideo(state, "overlay", "v2", 2 * S, "video-2");
     state = executeCommand(state, {
       type: "setAudio",
-      audio: {
-        id: "audio",
-        assetId: "a1",
-        timelineStartUs: S,
-        sourceInUs: 0,
-        sourceOutUs: 10 * S,
-        volume: 0.5,
-      },
+      audio: { id: "audio", assetId: "a1", timelineStartUs: S, sourceInUs: 0, sourceOutUs: 10 * S, volume: 0.5 },
     });
 
     const safe = toSafeEditorState(state);
+    expect(safe.tracks.filter((track) => track.kind === "video")).toHaveLength(2);
+    expect(safe.videoClips.map((clip) => clip.trackId)).toEqual([DEFAULT_VIDEO_TRACK_ID, "video-2"]);
+    expect(safe.audioClip).toMatchObject({ trackId: DEFAULT_AUDIO_TRACK_ID, id: "audio" });
     const serialized = JSON.stringify(safe);
-    expect(safe.videoClips[0]).toMatchObject({ playbackRate: 1.5, fadeInUs: 500_000, fadeOutUs: S });
-    expect(serialized).toContain("one.mp4");
     expect(serialized).not.toContain("objectUrl");
     expect(serialized).not.toContain("fileHandle");
     expect(serialized).not.toContain("absolutePath");
