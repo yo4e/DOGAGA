@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { EditorController } from "../editor/controller";
 import {
   clipDurationUs,
+  clipFadeOpacityAt,
   sourceTimeUsAt,
   timelineDurationUs,
   type EditorState,
@@ -26,7 +27,7 @@ function clipEndUs(clip: VideoClip): number {
   return clip.timelineStartUs + clipDurationUs(clip);
 }
 
-function opacityForClip(state: EditorState, clip: VideoClip): number {
+function transitionOpacity(state: EditorState, clip: VideoClip): number {
   for (const transition of state.transitions) {
     const to = state.videoClips.find((candidate) => candidate.id === transition.toClipId);
     if (!to) continue;
@@ -39,6 +40,10 @@ function opacityForClip(state: EditorState, clip: VideoClip): number {
     if (clip.id === transition.toClipId) return progress;
   }
   return 1;
+}
+
+function opacityForClip(state: EditorState, clip: VideoClip): number {
+  return transitionOpacity(state, clip) * clipFadeOpacityAt(clip, state.playheadUs);
 }
 
 function VideoLayer({ clip, state, runtime, playing }: {
@@ -130,9 +135,7 @@ export function Preview({ state, controller, runtime }: Props) {
 
   const seek = (nextUs: number) => {
     controller.setPlayheadUs(nextUs);
-    if (playing) {
-      clockRef.current = { wallMs: performance.now(), playheadUs: nextUs };
-    }
+    if (playing) clockRef.current = { wallMs: performance.now(), playheadUs: nextUs };
   };
 
   useEffect(() => {
@@ -215,12 +218,7 @@ export function Preview({ state, controller, runtime }: Props) {
       </div>
 
       {state.audioClip && audioBinding && (
-        <audio
-          ref={audioRef}
-          src={audioBinding.objectUrl}
-          preload="auto"
-          onLoadedMetadata={(event) => syncAudio(event.currentTarget)}
-        />
+        <audio ref={audioRef} src={audioBinding.objectUrl} preload="auto" onLoadedMetadata={(event) => syncAudio(event.currentTarget)} />
       )}
 
       <div className="transport">
