@@ -1,4 +1,10 @@
-import type { EditorState, VideoClip } from "../editor/model";
+import {
+  allVideoClips,
+  getAudioTracks,
+  type AudioClip,
+  type EditorState,
+  type VideoClip,
+} from "../editor/model";
 import type { MediaRuntime } from "../media/runtime";
 import { computeDrawRegion, exportDurationUs, pickRecorderFormat, videoLayersAt, type RecorderFormat } from "./plan";
 
@@ -29,10 +35,15 @@ type PreparedVideo = {
   element: HTMLVideoElement;
 };
 
+type PreparedAudioSource = {
+  clip: AudioClip;
+  source: AudioBufferSourceNode;
+};
+
 type PreparedAudio = {
   context: AudioContext;
   destination: MediaStreamAudioDestinationNode;
-  source: AudioBufferSourceNode;
+  sources: PreparedAudioSource[];
 };
 
 function abortError(): DOMException {
@@ -83,7 +94,7 @@ function waitForSeek(video: HTMLVideoElement): Promise<void> {
 async function prepareVideos(state: EditorState, runtime: MediaRuntime): Promise<Map<string, PreparedVideo>> {
   const prepared = new Map<string, PreparedVideo>();
 
-  await Promise.all(state.videoClips.map(async (clip) => {
+  await Promise.all(allVideoClips(state).map(async (clip) => {
     const binding = runtime.get(clip.assetId);
     if (!binding) throw new Error(`動画素材 ${clip.assetId} のruntime bindingが見つかりません`);
 
@@ -106,34 +117,41 @@ async function prepareVideos(state: EditorState, runtime: MediaRuntime): Promise
 }
 
 async function prepareAudio(state: EditorState, runtime: MediaRuntime): Promise<PreparedAudio | null> {
-  const clip = state.audioClip;
-  if (!clip) return null;
-
-  const binding = runtime.get(clip.assetId);
-  if (!binding) throw new Error(`音源 ${clip.assetId} のruntime bindingが見つかりません`);
+  const clips = getAudioTracks(state).flatMap((track) => track.muted ? [] : track.clips);
+  if (!clips.length) return null;
 
   const context = new AudioContext();
   await context.resume();
-  const buffer = await context.decodeAudioData(await binding.file.arrayBuffer());
   const destination = context.createMediaStreamDestination();
-  const source = context.createBufferSource();
-  const gain = context.createGain();
-  source.buffer = buffer;
-  gain.gain.value = clip.volume;
-  source.connect(gain);
-  gain.connect(destination);
+  const sources: PreparedAudioSource[] = [];
 
-  return { context, destination, source };
+  for (const clip of clips) {
+    const binding = runtime.get(clip.assetId);
+    if (!binding) {
+      await context.close();
+      throw new Error(`音源 ${clip.assetId} のruntime bindingが見つかりません`);
+    }
+
+    const buffer = await context.decodeAudioData(await binding.file.arrayBuffer());
+    const source = context.createBufferSource();
+    const gain = context.createGain();
+    source.buffer = buffer;
+    gain.gain.value = clip.volume;
+    source.connect(gain);
+    gain.connect(destination);
+    sources.push({ clip, source });
+  }
+
+  return { context, destination, sources };
 }
 
-function startAudio(prepared: PreparedAudio, state: EditorState): void {
-  const clip = state.audioClip;
-  if (!clip) return;
-
-  const startDelaySeconds = clip.timelineStartUs / US;
-  const offsetSeconds = clip.sourceInUs / US;
-  const durationSeconds = (clip.sourceOutUs - clip.sourceInUs) / US;
-  prepared.source.start(prepared.context.currentTime + startDelaySeconds, offsetSeconds, durationSeconds);
+function startAudio(prepared: PreparedAudio): void {
+  for (const { clip, source } of prepared.sources) {
+    const startDelaySeconds = clip.timelineStartUs / US;
+    const offsetSeconds = clip.sourceInUs / US;
+    const durationSeconds = (clip.sourceOutUs - clip.sourceInUs) / US;
+    source.start(prepared.context.currentTime + startDelaySeconds, offsetSeconds, durationSeconds);
+  }
 }
 
 function drawFrame(
@@ -209,7 +227,7 @@ function createRecorder(stream: MediaStream): { recorder: MediaRecorder; format:
 }
 
 export async function exportProject({ state, runtime, onProgress, signal }: ExportProjectOptions): Promise<ExportResult> {
-  if (!state.videoClips.length) throw new Error("書き出す動画clipがありません");
+  if (!allVideoClips(state).length) throw new Error("書き出す動画clipがありません");
   if (signal?.aborted) throw abortError();
 
   const durationUs = exportDurationUs(state);
@@ -273,7 +291,7 @@ export async function exportProject({ state, runtime, onProgress, signal }: Expo
 
       drawFrame(context, state, videos, 0);
       recorder.start(500);
-      if (audio) startAudio(audio, state);
+      if (audio) startAudio(audio);
       const startMs = performance.now();
 
       const render = (now: number) => {
@@ -302,7 +320,9 @@ export async function exportProject({ state, runtime, onProgress, signal }: Expo
     for (const track of stream.getTracks()) track.stop();
     for (const track of canvasStream.getTracks()) track.stop();
     if (audio) {
-      try { audio.source.stop(); } catch { /* already stopped */ }
+      for (const prepared of audio.sources) {
+        try { prepared.source.stop(); } catch { /* already stopped */ }
+      }
       await audio.context.close();
     }
   }
