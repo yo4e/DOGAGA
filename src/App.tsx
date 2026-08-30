@@ -5,6 +5,7 @@ import type { AssetKind, VideoClip } from "./editor/model";
 import { MediaRuntime } from "./media/runtime";
 import { probeMediaFile } from "./media/probe";
 import { Preview } from "./preview/Preview";
+import { WebMCPTools, type AgentActivity } from "./webmcp/WebMCPTools";
 
 const US = 1_000_000;
 
@@ -24,6 +25,7 @@ function App() {
   const state = useSyncExternalStore(controller.subscribe, controller.getState, controller.getState);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [activities, setActivities] = useState<AgentActivity[]>([]);
 
   useEffect(() => () => runtime.dispose(), [runtime]);
 
@@ -92,6 +94,10 @@ function App() {
     const sourceInUs = side === "in" ? clip.sourceInUs + step : clip.sourceInUs;
     const sourceOutUs = side === "out" ? clip.sourceOutUs - step : clip.sourceOutUs;
     run(() => controller.execute({ type: "trimClip", clipId: clip.id, sourceInUs, sourceOutUs }));
+  };
+
+  const recordActivity = (activity: AgentActivity) => {
+    setActivities((current) => [activity, ...current].slice(0, 8));
   };
 
   return (
@@ -230,8 +236,23 @@ function App() {
         )}
       </section>
 
+      <section className="panel agent-panel">
+        <h2>4. WebMCP / Agent</h2>
+        <WebMCPTools controller={controller} onActivity={recordActivity} />
+        <div className="activity-list" aria-live="polite">
+          {activities.map((activity) => (
+            <div className={`activity-item ${activity.status}`} key={activity.id}>
+              <strong>Agent: {activity.tool}</strong>
+              <span>{activity.status === "success" ? "成功" : "エラー"}</span>
+              <small>{activity.message}</small>
+            </div>
+          ))}
+          {!activities.length && <p className="muted">Agentからtoolが実行されると、ここに履歴が表示されます。</p>}
+        </div>
+      </section>
+
       <section className="panel state-panel">
-        <h2>4. Agent-safe state</h2>
+        <h2>5. Agent-safe state</h2>
         <p className="muted">WebMCPの `get_project_state` はこの形だけを返す。File / path / object URLは含めない。</p>
         <pre>{JSON.stringify(controller.getSafeState(), null, 2)}</pre>
       </section>
