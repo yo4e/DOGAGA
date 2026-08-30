@@ -39,6 +39,82 @@ describe("executeCommand", () => {
     expect(state.videoClips.map((clip) => clip.timelineStartUs)).toEqual([0, 3 * S]);
   });
 
+  it("splits a clip at timeline time while preserving total duration", () => {
+    let state = addVideo(baseState(), "c1", "v1", 6 * S);
+    state = executeCommand(state, {
+      type: "splitClip",
+      clipId: "c1",
+      atTimelineUs: 2 * S,
+      newClipId: "c1-right",
+    });
+
+    expect(state.videoClips).toEqual([
+      {
+        id: "c1",
+        assetId: "v1",
+        timelineStartUs: 0,
+        sourceInUs: 0,
+        sourceOutUs: 2 * S,
+      },
+      {
+        id: "c1-right",
+        assetId: "v1",
+        timelineStartUs: 2 * S,
+        sourceInUs: 2 * S,
+        sourceOutUs: 6 * S,
+      },
+    ]);
+    expect(timelineDurationUs(state)).toBe(6 * S);
+  });
+
+  it("moves an outgoing transition to the right half after split", () => {
+    let state = addVideo(baseState(), "c1", "v1", 5 * S);
+    state = addVideo(state, "c2", "v2", 4 * S);
+    state = executeCommand(state, {
+      type: "addTransition",
+      transition: {
+        id: "t1",
+        kind: "cross-dissolve",
+        fromClipId: "c1",
+        toClipId: "c2",
+        durationUs: S,
+      },
+    });
+    state = executeCommand(state, {
+      type: "splitClip",
+      clipId: "c1",
+      atTimelineUs: 2 * S,
+      newClipId: "c1-right",
+    });
+
+    expect(state.transitions).toEqual([
+      {
+        id: "t1",
+        kind: "cross-dissolve",
+        fromClipId: "c1-right",
+        toClipId: "c2",
+        durationUs: S,
+      },
+    ]);
+    expect(state.videoClips.map((clip) => clip.timelineStartUs)).toEqual([0, 2 * S, 4 * S]);
+  });
+
+  it("rejects split at clip edges or with a duplicate new id", () => {
+    const state = addVideo(baseState(), "c1", "v1", 5 * S);
+    expect(() => executeCommand(state, {
+      type: "splitClip",
+      clipId: "c1",
+      atTimelineUs: 0,
+      newClipId: "right",
+    })).toThrowError(/内側/);
+    expect(() => executeCommand(state, {
+      type: "splitClip",
+      clipId: "c1",
+      atTimelineUs: 2 * S,
+      newClipId: "c1",
+    })).toThrowError(/すでに存在/);
+  });
+
   it("reorders clips by index without creating accidental overlap", () => {
     let state = addVideo(baseState(), "c1", "v1", 5 * S);
     state = addVideo(state, "c2", "v2", 4 * S);
