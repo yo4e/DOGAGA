@@ -221,7 +221,7 @@ export function Preview({ state, controller, runtime }: Props) {
 
       <div className="transport">
         <button type="button" onClick={togglePlayback} disabled={durationUs <= 0}>
-          {playing ? "停止" : "再生"}
+          {playing ? "一時停止" : "再生"}
         </button>
         <span>{(state.playheadUs / US).toFixed(2)}s / {(durationUs / US).toFixed(2)}s</span>
         <input
