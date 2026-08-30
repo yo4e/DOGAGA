@@ -8,6 +8,7 @@ import {
   type CanvasPresetId,
   type VideoClip,
 } from "./editor/model";
+import { ExportPanel } from "./export/ExportPanel";
 import { MediaRuntime } from "./media/runtime";
 import { probeMediaFile } from "./media/probe";
 import { Preview } from "./preview/Preview";
@@ -307,8 +308,10 @@ function App() {
         )}
       </section>
 
+      <ExportPanel state={state} runtime={runtime} />
+
       <section className="panel agent-panel">
-        <h2>4. WebMCP / Agent</h2>
+        <h2>5. WebMCP / Agent</h2>
         <WebMCPTools controller={controller} onActivity={recordActivity} />
         <div className="activity-list" aria-live="polite">
           {activities.map((activity) => (
@@ -323,7 +326,7 @@ function App() {
       </section>
 
       <section className="panel state-panel">
-        <h2>5. Agent-safe state</h2>
+        <h2>6. Agent-safe state</h2>
         <p className="muted">WebMCPの `get_project_state` はこの形だけを返す。File / path / object URLは含めない。</p>
         <pre>{JSON.stringify(controller.getSafeState(), null, 2)}</pre>
       </section>
