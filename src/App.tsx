@@ -7,6 +7,7 @@ import {
   clipDurationUs,
   findVideoClipLocation,
   getAudioTracks,
+  getVideoTracks,
   type AssetKind,
   type CanvasFitMode,
   type CanvasPresetId,
@@ -45,7 +46,9 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [activities, setActivities] = useState<AgentActivity[]>([]);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
+  const [videoTargetTrackId, setVideoTargetTrackId] = useState<string | null>(null);
   const videoClips = useMemo(() => allVideoClips(state), [state.tracks]);
+  const videoTracks = useMemo(() => getVideoTracks(state), [state.tracks]);
   const audioTracks = useMemo(() => getAudioTracks(state), [state.tracks]);
 
   useEffect(() => () => runtime.dispose(), [runtime]);
@@ -59,6 +62,13 @@ function App() {
       setSelectedClipId(videoClips[0].id);
     }
   }, [selectedClipId, videoClips]);
+
+  useEffect(() => {
+    if (!videoTracks.length) return;
+    if (!videoTargetTrackId || !videoTracks.some((track) => track.id === videoTargetTrackId)) {
+      setVideoTargetTrackId(videoTracks[0].id);
+    }
+  }, [videoTargetTrackId, videoTracks]);
 
   const run = (action: () => void): boolean => {
     try {
@@ -88,13 +98,14 @@ function App() {
     }
   };
 
-  const addVideo = (assetId: string) => {
+  const addVideo = (assetId: string, trackId?: string) => {
     const asset = state.assets.find((item) => item.id === assetId);
     if (!asset || asset.kind !== "video") return;
     const clipId = newId("clip");
     if (run(() =>
       controller.execute({
         type: "addClip",
+        ...(trackId ? { trackId } : {}),
         clip: {
           id: clipId,
           assetId,
@@ -147,6 +158,7 @@ function App() {
         (transition) => transition.fromClipId === selectedClip.id && transition.toClipId === nextClip.id,
       )
     : undefined;
+  const videoTargetTrack = videoTracks.find((track) => track.id === videoTargetTrackId) ?? videoTracks[0] ?? null;
 
   const splitSelectedClip = (): boolean => {
     if (!selectedClip) return false;
@@ -227,6 +239,17 @@ function App() {
             音源を選択
             <input type="file" accept="audio/*" onChange={(event) => void loadFiles(event.target.files, "audio")} />
           </label>
+          <label>
+            動画の追加先
+            <select
+              value={videoTargetTrack?.id ?? ""}
+              onChange={(event) => setVideoTargetTrackId(event.target.value)}
+            >
+              {videoTracks.map((track) => (
+                <option key={track.id} value={track.id}>{track.name}</option>
+              ))}
+            </select>
+          </label>
         </div>
         {loading && <p>metadataを読み込み中…</p>}
         <div className="asset-list">
@@ -237,7 +260,9 @@ function App() {
                 <small>{asset.kind} · {seconds(asset.durationUs)}s</small>
               </div>
               {asset.kind === "video" ? (
-                <button type="button" onClick={() => addVideo(asset.id)}>V1末尾へ</button>
+                <button type="button" onClick={() => addVideo(asset.id, videoTargetTrack?.id)}>
+                  {videoTargetTrack?.name ?? "V1"}末尾へ
+                </button>
               ) : (
                 <button type="button" onClick={() => setAudioTrack(asset.id)}>A1に設定</button>
               )}
