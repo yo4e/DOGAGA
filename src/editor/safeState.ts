@@ -17,6 +17,8 @@ export type SafeEditorState = {
     sourceInUs: number;
     sourceOutUs: number;
     playbackRate: number;
+    fadeInUs: number;
+    fadeOutUs: number;
   }>;
   audioClip: null | {
     id: string;
@@ -49,13 +51,15 @@ export function toSafeEditorState(state: EditorState): SafeEditorState {
       ...(height === undefined ? {} : { height }),
     })),
     videoClips: state.videoClips.map(
-      ({ id, assetId, timelineStartUs, sourceInUs, sourceOutUs, playbackRate }) => ({
+      ({ id, assetId, timelineStartUs, sourceInUs, sourceOutUs, playbackRate, fadeInUs, fadeOutUs }) => ({
         id,
         assetId,
         timelineStartUs,
         sourceInUs,
         sourceOutUs,
         playbackRate,
+        fadeInUs,
+        fadeOutUs,
       }),
     ),
     audioClip: state.audioClip

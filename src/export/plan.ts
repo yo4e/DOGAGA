@@ -1,5 +1,6 @@
 import {
   clipDurationUs,
+  clipFadeOpacityAt,
   sourceTimeUsAt,
   timelineDurationUs,
   type CanvasFitMode,
@@ -41,7 +42,7 @@ function clipEndUs(clip: VideoClip): number {
   return clip.timelineStartUs + clipDurationUs(clip);
 }
 
-function opacityAt(state: EditorState, clip: VideoClip, timelineUs: number): number {
+function transitionOpacityAt(state: EditorState, clip: VideoClip, timelineUs: number): number {
   for (const transition of state.transitions) {
     const to = state.videoClips.find((candidate) => candidate.id === transition.toClipId);
     if (!to) continue;
@@ -56,6 +57,10 @@ function opacityAt(state: EditorState, clip: VideoClip, timelineUs: number): num
   }
 
   return 1;
+}
+
+function opacityAt(state: EditorState, clip: VideoClip, timelineUs: number): number {
+  return transitionOpacityAt(state, clip, timelineUs) * clipFadeOpacityAt(clip, timelineUs);
 }
 
 export function exportDurationUs(state: EditorState): number {

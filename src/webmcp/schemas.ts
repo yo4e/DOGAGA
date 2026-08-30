@@ -65,6 +65,25 @@ export const setClipSpeedSchema = {
   additionalProperties: false,
 } as const;
 
+export const setClipFadeSchema = {
+  type: "object",
+  properties: {
+    clipId: { type: "string" },
+    fadeInUs: {
+      type: "integer",
+      enum: [0, 250000, 500000, 1000000, 2000000],
+      description: "Fade-in duration in timeline microseconds.",
+    },
+    fadeOutUs: {
+      type: "integer",
+      enum: [0, 250000, 500000, 1000000, 2000000],
+      description: "Fade-out duration in timeline microseconds.",
+    },
+  },
+  required: ["clipId", "fadeInUs", "fadeOutUs"],
+  additionalProperties: false,
+} as const;
+
 export const clipIdSchema = {
   type: "object",
   properties: { clipId: { type: "string" } },

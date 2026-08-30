@@ -7,6 +7,7 @@ import {
   moveClip,
   setAudio,
   setCanvas,
+  setClipFade,
   setClipSpeed,
   splitClip,
   trimClip,
@@ -67,6 +68,21 @@ describe("WebMCP handlers", () => {
     expect(controller.getState().videoClips[0].playbackRate).toBe(2);
     expect(controller.getSafeState().durationUs).toBe(4 * S);
     expect(() => setClipSpeed(controller, { clipId, playbackRate: 3 })).toThrow();
+  });
+
+  it("sets video fades through the shared executor", () => {
+    const controller = controllerWithAssets();
+    const { clipId } = addClip(controller, { assetId: "v1", sourceOutUs: 5 * S });
+    setClipFade(controller, { clipId, fadeInUs: 500_000, fadeOutUs: S });
+    expect(controller.getState().videoClips[0]).toMatchObject({
+      fadeInUs: 500_000,
+      fadeOutUs: S,
+    });
+    expect(getProjectState(controller).videoClips[0]).toMatchObject({
+      fadeInUs: 500_000,
+      fadeOutUs: S,
+    });
+    expect(() => setClipFade(controller, { clipId, fadeInUs: 750_000, fadeOutUs: 0 })).toThrow();
   });
 
   it("sets audio and validates volume in the executor", () => {

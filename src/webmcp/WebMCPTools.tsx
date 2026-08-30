@@ -10,6 +10,7 @@ import {
   removeTransition,
   setAudio,
   setCanvas,
+  setClipFade,
   setClipSpeed,
   splitClip,
   trimClip,
@@ -22,6 +23,7 @@ import {
   moveClipSchema,
   setAudioSchema,
   setCanvasSchema,
+  setClipFadeSchema,
   setClipSpeedSchema,
   splitClipSchema,
   transitionIdSchema,
@@ -102,6 +104,13 @@ export function WebMCPTools({ controller, onActivity }: Props) {
     execute: execute("set_clip_speed", (args) => setClipSpeed(controller, args)),
   });
 
+  const setClipFadeTool = useWebMCP({
+    name: "set_clip_fade",
+    description: "Set a video clip fade-in and fade-out duration in timeline microseconds. Supported values are 0, 250000, 500000, 1000000, and 2000000, limited by the clip's current timeline duration.",
+    inputSchema: setClipFadeSchema,
+    execute: execute("set_clip_fade", (args) => setClipFade(controller, args)),
+  });
+
   const deleteClipTool = useWebMCP({
     name: "delete_clip",
     description: "Delete an existing video clip from the timeline.",
@@ -151,6 +160,7 @@ export function WebMCPTools({ controller, onActivity }: Props) {
     trimClipTool,
     splitClipTool,
     setClipSpeedTool,
+    setClipFadeTool,
     deleteClipTool,
     setAudioTool,
     clearAudioTool,

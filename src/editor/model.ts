@@ -12,6 +12,7 @@ export const CANVAS_PRESETS = {
 } as const;
 
 export const PLAYBACK_RATES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2] as const;
+export const FADE_DURATIONS_US = [0, 250_000, 500_000, 1_000_000, 2_000_000] as const;
 export type PlaybackRate = (typeof PLAYBACK_RATES)[number];
 
 export type CanvasPresetId = keyof typeof CANVAS_PRESETS;
@@ -40,6 +41,8 @@ export type VideoClip = {
   sourceInUs: number;
   sourceOutUs: number;
   playbackRate: number;
+  fadeInUs: number;
+  fadeOutUs: number;
 };
 
 export type AudioClip = {
@@ -68,8 +71,10 @@ export type EditorState = {
   playheadUs: number;
 };
 
-export type VideoClipDraft = Omit<VideoClip, "timelineStartUs" | "playbackRate"> & {
+export type VideoClipDraft = Omit<VideoClip, "timelineStartUs" | "playbackRate" | "fadeInUs" | "fadeOutUs"> & {
   playbackRate?: number;
+  fadeInUs?: number;
+  fadeOutUs?: number;
 };
 
 export type EditorCommand =
@@ -78,6 +83,7 @@ export type EditorCommand =
   | { type: "trimClip"; clipId: ClipId; sourceInUs: number; sourceOutUs: number }
   | { type: "splitClip"; clipId: ClipId; atTimelineUs: number; newClipId: ClipId }
   | { type: "setClipSpeed"; clipId: ClipId; playbackRate: number }
+  | { type: "setClipFade"; clipId: ClipId; fadeInUs: number; fadeOutUs: number }
   | { type: "deleteClip"; clipId: ClipId }
   | { type: "setAudio"; audio: AudioClip | null }
   | { type: "setCanvas"; preset: CanvasPresetId; fitMode: CanvasFitMode }
@@ -119,6 +125,17 @@ export function sourceTimeUsAt(clip: VideoClip, timelineUs: number): number {
     clip.sourceOutUs,
     Math.max(clip.sourceInUs, clip.sourceInUs + Math.round(timelineOffsetUs * clip.playbackRate)),
   );
+}
+
+export function clipFadeOpacityAt(clip: VideoClip, timelineUs: number): number {
+  const durationUs = clipDurationUs(clip);
+  const offsetUs = timelineUs - clip.timelineStartUs;
+  if (offsetUs < 0 || offsetUs > durationUs) return 0;
+
+  const fadeInOpacity = clip.fadeInUs > 0 ? Math.min(1, Math.max(0, offsetUs / clip.fadeInUs)) : 1;
+  const remainingUs = durationUs - offsetUs;
+  const fadeOutOpacity = clip.fadeOutUs > 0 ? Math.min(1, Math.max(0, remainingUs / clip.fadeOutUs)) : 1;
+  return Math.min(fadeInOpacity, fadeOutOpacity);
 }
 
 export function timelineDurationUs(state: EditorState): number {

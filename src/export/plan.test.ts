@@ -54,6 +54,51 @@ describe("export plan", () => {
     ]);
   });
 
+  it("applies clip fade opacity in timeline time", () => {
+    let state = baseState();
+    state = executeCommand(state, {
+      type: "addClip",
+      clip: { id: "c1", assetId: "v1", sourceInUs: 0, sourceOutUs: 4 * S },
+    });
+    state = executeCommand(state, {
+      type: "setClipFade",
+      clipId: "c1",
+      fadeInUs: S,
+      fadeOutUs: S,
+    });
+
+    expect(videoLayersAt(state, 500_000)[0].opacity).toBeCloseTo(0.5);
+    expect(videoLayersAt(state, 2 * S)[0].opacity).toBe(1);
+    expect(videoLayersAt(state, 3_500_000)[0].opacity).toBeCloseTo(0.5);
+  });
+
+  it("multiplies clip fade with cross dissolve opacity", () => {
+    let state = withTwoClips();
+    state = executeCommand(state, {
+      type: "setClipFade",
+      clipId: "c2",
+      fadeInUs: S,
+      fadeOutUs: 0,
+    });
+    state = executeCommand(state, {
+      type: "addTransition",
+      transition: {
+        id: "t1",
+        kind: "cross-dissolve",
+        fromClipId: "c1",
+        toClipId: "c2",
+        durationUs: S,
+      },
+    });
+
+    const layers = videoLayersAt(state, 4.5 * S);
+    expect(layers).toHaveLength(2);
+    expect(layers[0]).toMatchObject({ clipId: "c1", opacity: 0.5 });
+    expect(layers[1].clipId).toBe("c2");
+    expect(layers[1].opacity).toBeCloseTo(0.25);
+    expect(exportDurationUs(state)).toBe(8 * S);
+  });
+
   it("returns two weighted layers during a cross dissolve", () => {
     let state = withTwoClips();
     state = executeCommand(state, {

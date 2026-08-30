@@ -8,6 +8,7 @@ import {
 } from "react";
 import type { EditorController } from "../editor/controller";
 import {
+  FADE_DURATIONS_US,
   PLAYBACK_RATES,
   clipDurationUs,
   timelineDurationUs,
@@ -25,7 +26,7 @@ type Props = {
   onSelectClip: (clipId: string) => void;
 };
 
-type SpeedMenu = {
+type ClipMenu = {
   clipId: string;
   x: number;
   y: number;
@@ -45,9 +46,13 @@ function tickStep(pixelsPerSecond: number, durationSeconds: number): number {
   ) ?? 600;
 }
 
+function fadeLabel(durationUs: number): string {
+  return durationUs === 0 ? "なし" : `${durationUs / US}秒`;
+}
+
 export function Timeline({ state, controller, selectedClipId, onSelectClip }: Props) {
   const [pixelsPerSecond, setPixelsPerSecond] = useState<(typeof SCALE_OPTIONS)[number]>(48);
-  const [speedMenu, setSpeedMenu] = useState<SpeedMenu | null>(null);
+  const [clipMenu, setClipMenu] = useState<ClipMenu | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const durationUs = timelineDurationUs(state);
   const contentSeconds = Math.max(10, Math.ceil(durationUs / US));
@@ -83,8 +88,8 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
   }, [pixelsPerSecond, selectedClipId, state.videoClips]);
 
   useEffect(() => {
-    if (!speedMenu) return;
-    const close = () => setSpeedMenu(null);
+    if (!clipMenu) return;
+    const close = () => setClipMenu(null);
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") close();
     };
@@ -94,7 +99,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
       window.removeEventListener("pointerdown", close);
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [speedMenu]);
+  }, [clipMenu]);
 
   const seekFromClick = (event: ReactMouseEvent<HTMLElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -102,14 +107,17 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
     controller.setPlayheadUs(Math.min(durationUs, nextUs));
   };
 
-  const speedMenuClip = speedMenu
-    ? state.videoClips.find((clip) => clip.id === speedMenu.clipId) ?? null
+  const menuClip = clipMenu
+    ? state.videoClips.find((clip) => clip.id === clipMenu.clipId) ?? null
     : null;
+  const allowedFadeDurations = menuClip
+    ? FADE_DURATIONS_US.filter((duration) => duration <= clipDurationUs(menuClip))
+    : FADE_DURATIONS_US;
 
   return (
     <div className="timeline-editor">
       <div className="timeline-toolbar">
-        <p>クリップを選ぶと下に編集操作が表示されます。右クリックで再生速度を変更できます。</p>
+        <p>クリップを選ぶと下に編集操作が表示されます。右クリックで再生速度・フェードを変更できます。</p>
         <label>
           表示幅
           <select
@@ -155,7 +163,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
                     className={`timeline-clip${selectedClipId === clip.id ? " selected" : ""}`}
                     key={clip.id}
                     aria-pressed={selectedClipId === clip.id}
-                    title={`${asset?.name ?? clip.assetId} · ${(duration / US).toFixed(2)}秒 · ${clip.playbackRate}×`}
+                    title={`${asset?.name ?? clip.assetId} · ${(duration / US).toFixed(2)}秒 · ${clip.playbackRate}× · fade ${fadeLabel(clip.fadeInUs)} / ${fadeLabel(clip.fadeOutUs)}`}
                     style={{
                       left: (clip.timelineStartUs / US) * pixelsPerSecond,
                       width: Math.max(28, (duration / US) * pixelsPerSecond),
@@ -169,10 +177,10 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
                       event.preventDefault();
                       event.stopPropagation();
                       onSelectClip(clip.id);
-                      setSpeedMenu({
+                      setClipMenu({
                         clipId: clip.id,
-                        x: Math.min(event.clientX, Math.max(8, window.innerWidth - 200)),
-                        y: Math.min(event.clientY, Math.max(8, window.innerHeight - 120)),
+                        x: Math.min(event.clientX, Math.max(8, window.innerWidth - 210)),
+                        y: Math.min(event.clientY, Math.max(8, window.innerHeight - 260)),
                       });
                     }}
                   >
@@ -230,12 +238,12 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
         </div>
       </div>
 
-      {speedMenu && speedMenuClip && (
+      {clipMenu && menuClip && (
         <div
           className="clip-context-menu"
           role="dialog"
-          aria-label="クリップの再生速度"
-          style={{ left: speedMenu.x, top: speedMenu.y }}
+          aria-label="クリップ設定"
+          style={{ left: clipMenu.x, top: clipMenu.y }}
           onPointerDown={(event) => event.stopPropagation()}
           onContextMenu={(event) => event.preventDefault()}
         >
@@ -243,22 +251,51 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
             再生速度
             <select
               autoFocus
-              value={speedMenuClip.playbackRate}
-              onChange={(event) => {
-                controller.execute({
-                  type: "setClipSpeed",
-                  clipId: speedMenuClip.id,
-                  playbackRate: Number(event.target.value),
-                });
-                setSpeedMenu(null);
-              }}
+              value={menuClip.playbackRate}
+              onChange={(event) => controller.execute({
+                type: "setClipSpeed",
+                clipId: menuClip.id,
+                playbackRate: Number(event.target.value),
+              })}
             >
               {PLAYBACK_RATES.map((rate) => (
                 <option key={rate} value={rate}>{rate}×</option>
               ))}
             </select>
           </label>
-          <small>右クリックしたclipだけに適用</small>
+          <label>
+            フェードイン
+            <select
+              value={menuClip.fadeInUs}
+              onChange={(event) => controller.execute({
+                type: "setClipFade",
+                clipId: menuClip.id,
+                fadeInUs: Number(event.target.value),
+                fadeOutUs: menuClip.fadeOutUs,
+              })}
+            >
+              {allowedFadeDurations.map((duration) => (
+                <option key={duration} value={duration}>{fadeLabel(duration)}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            フェードアウト
+            <select
+              value={menuClip.fadeOutUs}
+              onChange={(event) => controller.execute({
+                type: "setClipFade",
+                clipId: menuClip.id,
+                fadeInUs: menuClip.fadeInUs,
+                fadeOutUs: Number(event.target.value),
+              })}
+            >
+              {allowedFadeDurations.map((duration) => (
+                <option key={duration} value={duration}>{fadeLabel(duration)}</option>
+              ))}
+            </select>
+          </label>
+          <small>右クリックしたclipだけに適用。fadeはtimeline時間。</small>
         </div>
       )}
     </div>

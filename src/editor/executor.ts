@@ -1,5 +1,6 @@
 import {
   CANVAS_PRESETS,
+  FADE_DURATIONS_US,
   PLAYBACK_RATES,
   clipDurationUs,
   createCanvasSettings,
@@ -46,6 +47,26 @@ function validatePlaybackRate(playbackRate: number): void {
   }
 }
 
+function validateFadeDuration(durationUs: number): void {
+  if (!(FADE_DURATIONS_US as readonly number[]).includes(durationUs)) {
+    fail("INVALID_FADE_DURATION", "fadeは 0 / 0.25 / 0.5 / 1 / 2秒のいずれかで指定してください");
+  }
+}
+
+function fitFadeDuration(durationUs: number, clipTimelineDurationUs: number): number {
+  const limitUs = Math.min(durationUs, clipTimelineDurationUs);
+  return [...FADE_DURATIONS_US].reverse().find((candidate) => candidate <= limitUs) ?? 0;
+}
+
+function clampFades(clip: VideoClip): VideoClip {
+  const durationUs = clipDurationUs(clip);
+  return {
+    ...clip,
+    fadeInUs: fitFadeDuration(clip.fadeInUs, durationUs),
+    fadeOutUs: fitFadeDuration(clip.fadeOutUs, durationUs),
+  };
+}
+
 function isAdjacent(clips: readonly VideoClip[], fromClipId: string, toClipId: string): boolean {
   const fromIndex = clips.findIndex((clip) => clip.id === fromClipId);
   return fromIndex >= 0 && clips[fromIndex + 1]?.id === toClipId;
@@ -89,7 +110,7 @@ export function packVideoTrack(
       ? transitionDurationForBoundary(transitions, previous.id, clip.id)
       : 0;
     const timelineStartUs = Math.max(0, cursorUs - overlapUs);
-    const next = { ...clip, timelineStartUs };
+    const next = clampFades({ ...clip, timelineStartUs });
     packed.push(next);
     cursorUs = timelineStartUs + clipDurationUs(next);
   }
@@ -102,8 +123,9 @@ function finalizeVideoChange(
   videoClips: readonly VideoClip[],
   transitions: readonly Transition[] = state.transitions,
 ): EditorState {
-  const validTransitions = sanitizeTransitions(videoClips, transitions);
-  const packed = packVideoTrack(videoClips, validTransitions);
+  const clamped = videoClips.map(clampFades);
+  const validTransitions = sanitizeTransitions(clamped, transitions);
+  const packed = packVideoTrack(clamped, validTransitions);
   return {
     ...state,
     videoClips: packed,
@@ -121,7 +143,11 @@ export function executeCommand(state: EditorState, command: EditorCommand): Edit
       if (asset.kind !== "video") fail("ASSET_KIND_MISMATCH", "video clipにはvideo Assetが必要です");
       validateRange(asset, command.clip.sourceInUs, command.clip.sourceOutUs);
       const playbackRate = command.clip.playbackRate ?? 1;
+      const fadeInUs = command.clip.fadeInUs ?? 0;
+      const fadeOutUs = command.clip.fadeOutUs ?? 0;
       validatePlaybackRate(playbackRate);
+      validateFadeDuration(fadeInUs);
+      validateFadeDuration(fadeOutUs);
 
       const atIndex = command.atIndex ?? state.videoClips.length;
       if (!Number.isInteger(atIndex) || atIndex < 0 || atIndex > state.videoClips.length) {
@@ -129,18 +155,20 @@ export function executeCommand(state: EditorState, command: EditorCommand): Edit
       }
 
       const next = [...state.videoClips];
-      next.splice(atIndex, 0, { ...command.clip, playbackRate, timelineStartUs: 0 });
+      next.splice(atIndex, 0, {
+        ...command.clip,
+        playbackRate,
+        fadeInUs,
+        fadeOutUs,
+        timelineStartUs: 0,
+      });
       return finalizeVideoChange(state, next);
     }
 
     case "moveClip": {
       const fromIndex = state.videoClips.findIndex((clip) => clip.id === command.clipId);
       if (fromIndex < 0) fail("CLIP_NOT_FOUND", `Clip ${command.clipId} が見つかりません`);
-      if (
-        !Number.isInteger(command.toIndex) ||
-        command.toIndex < 0 ||
-        command.toIndex >= state.videoClips.length
-      ) {
+      if (!Number.isInteger(command.toIndex) || command.toIndex < 0 || command.toIndex >= state.videoClips.length) {
         fail("INVALID_INDEX", "移動先indexが範囲外です");
       }
       if (fromIndex === command.toIndex) return state;
@@ -159,11 +187,7 @@ export function executeCommand(state: EditorState, command: EditorCommand): Edit
       validateRange(asset, command.sourceInUs, command.sourceOutUs);
 
       const next = [...state.videoClips];
-      next[index] = {
-        ...clip,
-        sourceInUs: command.sourceInUs,
-        sourceOutUs: command.sourceOutUs,
-      };
+      next[index] = clampFades({ ...clip, sourceInUs: command.sourceInUs, sourceOutUs: command.sourceOutUs });
       return finalizeVideoChange(state, next);
     }
 
@@ -189,22 +213,22 @@ export function executeCommand(state: EditorState, command: EditorCommand): Edit
         fail("INVALID_SPLIT_POSITION", "split位置を素材時刻へ変換できませんでした");
       }
 
-      const left: VideoClip = { ...clip, sourceOutUs: sourceSplitUs };
-      const right: VideoClip = {
+      const left = clampFades({ ...clip, sourceOutUs: sourceSplitUs, fadeOutUs: 0 });
+      const right = clampFades({
         id: command.newClipId,
         assetId: clip.assetId,
         timelineStartUs: 0,
         sourceInUs: sourceSplitUs,
         sourceOutUs: clip.sourceOutUs,
         playbackRate: clip.playbackRate,
-      };
+        fadeInUs: 0,
+        fadeOutUs: clip.fadeOutUs,
+      });
       const next = [...state.videoClips];
       next.splice(index, 1, left, right);
 
       const remappedTransitions = state.transitions.map((transition) =>
-        transition.fromClipId === clip.id
-          ? { ...transition, fromClipId: command.newClipId }
-          : transition,
+        transition.fromClipId === clip.id ? { ...transition, fromClipId: command.newClipId } : transition,
       );
       return finalizeVideoChange(state, next, remappedTransitions);
     }
@@ -216,7 +240,21 @@ export function executeCommand(state: EditorState, command: EditorCommand): Edit
       if (state.videoClips[index].playbackRate === command.playbackRate) return state;
 
       const next = [...state.videoClips];
-      next[index] = { ...next[index], playbackRate: command.playbackRate };
+      next[index] = clampFades({ ...next[index], playbackRate: command.playbackRate });
+      return finalizeVideoChange(state, next);
+    }
+
+    case "setClipFade": {
+      const index = state.videoClips.findIndex((clip) => clip.id === command.clipId);
+      if (index < 0) fail("CLIP_NOT_FOUND", `Clip ${command.clipId} が見つかりません`);
+      validateFadeDuration(command.fadeInUs);
+      validateFadeDuration(command.fadeOutUs);
+      const durationUs = clipDurationUs(state.videoClips[index]);
+      if (command.fadeInUs > durationUs || command.fadeOutUs > durationUs) {
+        fail("FADE_TOO_LONG", "fade時間はclipのtimeline尺以内にしてください");
+      }
+      const next = [...state.videoClips];
+      next[index] = { ...next[index], fadeInUs: command.fadeInUs, fadeOutUs: command.fadeOutUs };
       return finalizeVideoChange(state, next);
     }
 
@@ -224,10 +262,7 @@ export function executeCommand(state: EditorState, command: EditorCommand): Edit
       if (!state.videoClips.some((clip) => clip.id === command.clipId)) {
         fail("CLIP_NOT_FOUND", `Clip ${command.clipId} が見つかりません`);
       }
-      return finalizeVideoChange(
-        state,
-        state.videoClips.filter((clip) => clip.id !== command.clipId),
-      );
+      return finalizeVideoChange(state, state.videoClips.filter((clip) => clip.id !== command.clipId));
     }
 
     case "setAudio": {
@@ -250,10 +285,7 @@ export function executeCommand(state: EditorState, command: EditorCommand): Edit
       if (command.fitMode !== "contain" && command.fitMode !== "cover") {
         fail("INVALID_CANVAS_FIT", "未対応の素材表示方法です");
       }
-      return {
-        ...state,
-        canvas: createCanvasSettings(command.preset, command.fitMode),
-      };
+      return { ...state, canvas: createCanvasSettings(command.preset, command.fitMode) };
     }
 
     case "addTransition": {
@@ -262,11 +294,7 @@ export function executeCommand(state: EditorState, command: EditorCommand): Edit
       if (state.transitions.some((item) => item.id === transition.id)) {
         fail("TRANSITION_ID_CONFLICT", `Transition ${transition.id} はすでに存在します`);
       }
-      if (
-        state.transitions.some(
-          (item) => item.fromClipId === transition.fromClipId && item.toClipId === transition.toClipId,
-        )
-      ) {
+      if (state.transitions.some((item) => item.fromClipId === transition.fromClipId && item.toClipId === transition.toClipId)) {
         fail("TRANSITION_CONFLICT", "同じclip境界にはtransitionを1つだけ設定できます");
       }
       if (!transitionFits(state.videoClips, transition)) {
@@ -279,11 +307,7 @@ export function executeCommand(state: EditorState, command: EditorCommand): Edit
       if (!state.transitions.some((transition) => transition.id === command.transitionId)) {
         fail("TRANSITION_NOT_FOUND", `Transition ${command.transitionId} が見つかりません`);
       }
-      return finalizeVideoChange(
-        state,
-        state.videoClips,
-        state.transitions.filter((transition) => transition.id !== command.transitionId),
-      );
+      return finalizeVideoChange(state, state.videoClips, state.transitions.filter((transition) => transition.id !== command.transitionId));
     }
   }
 }

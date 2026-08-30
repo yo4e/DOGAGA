@@ -54,6 +54,34 @@ describe("executeCommand", () => {
     })).toThrowError(/再生速度/);
   });
 
+  it("sets clip fades and keeps fade values on supported presets after duration changes", () => {
+    let state = addVideo(baseState(), "c1", "v1", 6 * S);
+    state = executeCommand(state, {
+      type: "setClipFade",
+      clipId: "c1",
+      fadeInUs: S,
+      fadeOutUs: 2 * S,
+    });
+    expect(state.videoClips[0]).toMatchObject({ fadeInUs: S, fadeOutUs: 2 * S });
+
+    state = executeCommand(state, {
+      type: "trimClip",
+      clipId: "c1",
+      sourceInUs: 0,
+      sourceOutUs: 1_300_000,
+    });
+    expect(state.videoClips[0]).toMatchObject({ fadeInUs: S, fadeOutUs: S });
+
+    state = executeCommand(state, { type: "setClipSpeed", clipId: "c1", playbackRate: 2 });
+    expect(state.videoClips[0]).toMatchObject({ fadeInUs: 500_000, fadeOutUs: 500_000 });
+    expect(() => executeCommand(state, {
+      type: "setClipFade",
+      clipId: "c1",
+      fadeInUs: 2 * S,
+      fadeOutUs: 0,
+    })).toThrowError(/timeline尺/);
+  });
+
   it("splits a clip at timeline time while preserving total duration", () => {
     let state = addVideo(baseState(), "c1", "v1", 6 * S);
     state = executeCommand(state, {
@@ -71,6 +99,8 @@ describe("executeCommand", () => {
         sourceInUs: 0,
         sourceOutUs: 2 * S,
         playbackRate: 1,
+        fadeInUs: 0,
+        fadeOutUs: 0,
       },
       {
         id: "c1-right",
@@ -79,9 +109,30 @@ describe("executeCommand", () => {
         sourceInUs: 2 * S,
         sourceOutUs: 6 * S,
         playbackRate: 1,
+        fadeInUs: 0,
+        fadeOutUs: 0,
       },
     ]);
     expect(timelineDurationUs(state)).toBe(6 * S);
+  });
+
+  it("keeps only the original outer fades when splitting", () => {
+    let state = addVideo(baseState(), "c1", "v1", 6 * S);
+    state = executeCommand(state, {
+      type: "setClipFade",
+      clipId: "c1",
+      fadeInUs: S,
+      fadeOutUs: 2 * S,
+    });
+    state = executeCommand(state, {
+      type: "splitClip",
+      clipId: "c1",
+      atTimelineUs: 2 * S,
+      newClipId: "right",
+    });
+
+    expect(state.videoClips[0]).toMatchObject({ fadeInUs: S, fadeOutUs: 0 });
+    expect(state.videoClips[1]).toMatchObject({ fadeInUs: 0, fadeOutUs: 2 * S });
   });
 
   it("maps a split through playback rate into source time", () => {
@@ -297,6 +348,7 @@ describe("executeCommand", () => {
   it("serializes only the agent-safe editor state", () => {
     let state = addVideo(baseState(), "c1", "v1", 5 * S);
     state = executeCommand(state, { type: "setClipSpeed", clipId: "c1", playbackRate: 1.5 });
+    state = executeCommand(state, { type: "setClipFade", clipId: "c1", fadeInUs: 500_000, fadeOutUs: S });
     state = executeCommand(state, {
       type: "setAudio",
       audio: {
@@ -311,7 +363,7 @@ describe("executeCommand", () => {
 
     const safe = toSafeEditorState(state);
     const serialized = JSON.stringify(safe);
-    expect(safe.videoClips[0].playbackRate).toBe(1.5);
+    expect(safe.videoClips[0]).toMatchObject({ playbackRate: 1.5, fadeInUs: 500_000, fadeOutUs: S });
     expect(serialized).toContain("one.mp4");
     expect(serialized).not.toContain("objectUrl");
     expect(serialized).not.toContain("fileHandle");
