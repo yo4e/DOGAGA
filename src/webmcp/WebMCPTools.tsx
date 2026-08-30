@@ -10,6 +10,7 @@ import {
   removeTransition,
   setAudio,
   setCanvas,
+  setClipSpeed,
   splitClip,
   trimClip,
 } from "./handlers";
@@ -21,6 +22,7 @@ import {
   moveClipSchema,
   setAudioSchema,
   setCanvasSchema,
+  setClipSpeedSchema,
   splitClipSchema,
   transitionIdSchema,
   trimClipSchema,
@@ -93,6 +95,13 @@ export function WebMCPTools({ controller, onActivity }: Props) {
     execute: execute("split_clip", (args) => splitClip(controller, args)),
   });
 
+  const setClipSpeedTool = useWebMCP({
+    name: "set_clip_speed",
+    description: "Set a video clip playback speed. Supported rates are 0.25, 0.5, 0.75, 1, 1.25, 1.5, and 2. Timeline duration changes while source in/out stay the same.",
+    inputSchema: setClipSpeedSchema,
+    execute: execute("set_clip_speed", (args) => setClipSpeed(controller, args)),
+  });
+
   const deleteClipTool = useWebMCP({
     name: "delete_clip",
     description: "Delete an existing video clip from the timeline.",
@@ -141,6 +150,7 @@ export function WebMCPTools({ controller, onActivity }: Props) {
     moveClipTool,
     trimClipTool,
     splitClipTool,
+    setClipSpeedTool,
     deleteClipTool,
     setAudioTool,
     clearAudioTool,

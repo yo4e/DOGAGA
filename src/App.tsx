@@ -3,6 +3,7 @@ import { EditorController } from "./editor/controller";
 import { EditorCommandError } from "./editor/executor";
 import {
   CANVAS_PRESETS,
+  clipDurationUs,
   type AssetKind,
   type CanvasFitMode,
   type CanvasPresetId,
@@ -273,7 +274,7 @@ function App() {
 
       <section className="panel timeline-panel">
         <h2>3. タイムライン</h2>
-        <p className="muted">⌘K / Ctrl+K: 再生ヘッドでカット（分割） ・ Shift+D: 次のclipとのディゾルブ切替</p>
+        <p className="muted">⌘K / Ctrl+K: 再生ヘッドでカット（分割） ・ Shift+D: 次のclipとのディゾルブ切替 ・ clip右クリック: 再生速度</p>
         <Timeline
           state={state}
           controller={controller}
@@ -287,8 +288,9 @@ function App() {
               <small>選択中のクリップ</small>
               <strong>{state.assets.find((asset) => asset.id === selectedClip.assetId)?.name ?? selectedClip.assetId}</strong>
               <span>
-                {seconds(selectedClip.timelineStartUs)}s → {seconds(selectedClip.timelineStartUs + selectedClip.sourceOutUs - selectedClip.sourceInUs)}s
+                {seconds(selectedClip.timelineStartUs)}s → {seconds(selectedClip.timelineStartUs + clipDurationUs(selectedClip))}s
                 ・素材 {seconds(selectedClip.sourceInUs)}–{seconds(selectedClip.sourceOutUs)}s
+                ・速度 {selectedClip.playbackRate}×
               </span>
             </div>
             <div className="button-row inspector-actions">

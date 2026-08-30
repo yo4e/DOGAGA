@@ -7,6 +7,7 @@ import {
   moveClip,
   setAudio,
   setCanvas,
+  setClipSpeed,
   splitClip,
   trimClip,
 } from "./handlers";
@@ -57,6 +58,15 @@ describe("WebMCP handlers", () => {
     const fromPlayhead = splitClip(controller, { clipId: explicit.newClipId });
     expect(fromPlayhead.timelineUs).toBe(4 * S);
     expect(controller.getState().videoClips).toHaveLength(3);
+  });
+
+  it("sets video playback rate through the shared executor", () => {
+    const controller = controllerWithAssets();
+    const { clipId } = addClip(controller, { assetId: "v1", sourceOutUs: 8 * S });
+    setClipSpeed(controller, { clipId, playbackRate: 2 });
+    expect(controller.getState().videoClips[0].playbackRate).toBe(2);
+    expect(controller.getSafeState().durationUs).toBe(4 * S);
+    expect(() => setClipSpeed(controller, { clipId, playbackRate: 3 })).toThrow();
   });
 
   it("sets audio and validates volume in the executor", () => {

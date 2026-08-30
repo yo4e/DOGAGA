@@ -96,6 +96,7 @@ async function prepareVideos(state: EditorState, runtime: MediaRuntime): Promise
     video.load();
 
     await waitForVideoReady(video);
+    video.playbackRate = clip.playbackRate;
     video.currentTime = clip.sourceInUs / US;
     await waitForSeek(video);
     prepared.set(clip.id, { clip, element: video });
@@ -158,6 +159,7 @@ function drawFrame(
     if (!prepared) continue;
     const video = prepared.element;
     const targetSeconds = layer.sourceTimeUs / US;
+    video.playbackRate = prepared.clip.playbackRate;
 
     if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
       if (Math.abs(video.currentTime - targetSeconds) > VIDEO_DRIFT_THRESHOLD_SECONDS) {

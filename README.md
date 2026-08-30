@@ -24,6 +24,7 @@ Premiere Proのような総合編集ソフトを再現するのではなく、MV
 - 再生ヘッド位置でのclip分割
 - `⌘K` / `Ctrl+K` で選択clipを再生ヘッド位置で分割
 - `Shift+D` で選択clipと次clipの0.5秒cross dissolveを切替
+- clip右クリックで再生速度変更（0.25× / 0.5× / 0.75× / 1× / 1.25× / 1.5× / 2×）
 - audio start / volume / remove
 - cross dissolve追加・削除
 - 実時間に比例したtimeline表示
@@ -34,7 +35,7 @@ Premiere Proのような総合編集ソフトを再現するのではなく、MV
 
 - actual local videoのplay / pause / seek
 - clip境界を越える再生
-- trim / split / move / deleteの即時反映
+- trim / split / speed / move / deleteの即時反映
 - audio同期
 - 2 video layerによる実cross dissolve
 - project canvas: 16:9 / 9:16 / 1:1 / 4:5
@@ -43,7 +44,7 @@ Premiere Proのような総合編集ソフトを再現するのではなく、MV
 ### 書き出し
 
 - 現在のV1 / A1をブラウザ内で動画へ書き出し
-- trim / clip順 / canvas / contain-cover / cross dissolve / audioを反映
+- trim / split / playback speed / clip順 / canvas / contain-cover / cross dissolve / audioを反映
 - browser-native `canvas.captureStream()` + Web Audio + MediaRecorder
 - 対応環境ではMP4を優先し、必要に応じてWebMへfallback
 - server uploadなし
@@ -62,6 +63,7 @@ DOGAGAは、現在開いている編集ページ自身がWebMCP toolsを公開�
 - `move_clip`
 - `trim_clip`
 - `split_clip`
+- `set_clip_speed`
 - `delete_clip`
 - `set_audio`
 - `clear_audio`
@@ -124,11 +126,12 @@ compact production v0は機能を意図的に絞っています。現在の主�
 
 - 編集sessionの永続保存 / relinkは未実装
 - multi-video-track / multi-audio-trackは未実装
-- clip playback speed / fade in-outは未実装
+- clip fade in-outは未実装
+- audio clipの再生速度変更は未実装
 - waveform / lyrics / captions / advanced effectsは未実装
 - frame-perfectな業務用NLE精度は目標外
 
-次の重要な製品課題は、**基本編集操作（split / speed / fade）の拡充、multi-track化、実利用で見つかるUX修正**です。
+次の重要な製品課題は、**fade in-out、multi-track化、実利用で見つかるUX修正**です。
 
 ## WebMCP Challenge 2026
 

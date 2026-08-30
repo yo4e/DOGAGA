@@ -7,7 +7,13 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import type { EditorController } from "../editor/controller";
-import { clipDurationUs, timelineDurationUs, type EditorState } from "../editor/model";
+import {
+  PLAYBACK_RATES,
+  clipDurationUs,
+  timelineDurationUs,
+  type EditorState,
+} from "../editor/model";
+import "./context-menu.css";
 
 const US = 1_000_000;
 const SCALE_OPTIONS = [24, 48, 80] as const;
@@ -17,6 +23,12 @@ type Props = {
   controller: EditorController;
   selectedClipId: string | null;
   onSelectClip: (clipId: string) => void;
+};
+
+type SpeedMenu = {
+  clipId: string;
+  x: number;
+  y: number;
 };
 
 function timestamp(seconds: number): string {
@@ -35,6 +47,7 @@ function tickStep(pixelsPerSecond: number, durationSeconds: number): number {
 
 export function Timeline({ state, controller, selectedClipId, onSelectClip }: Props) {
   const [pixelsPerSecond, setPixelsPerSecond] = useState<(typeof SCALE_OPTIONS)[number]>(48);
+  const [speedMenu, setSpeedMenu] = useState<SpeedMenu | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const durationUs = timelineDurationUs(state);
   const contentSeconds = Math.max(10, Math.ceil(durationUs / US));
@@ -69,16 +82,34 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
     }
   }, [pixelsPerSecond, selectedClipId, state.videoClips]);
 
+  useEffect(() => {
+    if (!speedMenu) return;
+    const close = () => setSpeedMenu(null);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", close);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [speedMenu]);
+
   const seekFromClick = (event: ReactMouseEvent<HTMLElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const nextUs = Math.max(0, Math.round(((event.clientX - rect.left) / pixelsPerSecond) * US));
     controller.setPlayheadUs(Math.min(durationUs, nextUs));
   };
 
+  const speedMenuClip = speedMenu
+    ? state.videoClips.find((clip) => clip.id === speedMenu.clipId) ?? null
+    : null;
+
   return (
     <div className="timeline-editor">
       <div className="timeline-toolbar">
-        <p>クリップを選ぶと下に編集操作が表示されます。空いている場所をクリックすると再生位置を移動できます。</p>
+        <p>クリップを選ぶと下に編集操作が表示されます。右クリックで再生速度を変更できます。</p>
         <label>
           表示幅
           <select
@@ -124,7 +155,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
                     className={`timeline-clip${selectedClipId === clip.id ? " selected" : ""}`}
                     key={clip.id}
                     aria-pressed={selectedClipId === clip.id}
-                    title={`${asset?.name ?? clip.assetId} · ${(duration / US).toFixed(2)}秒`}
+                    title={`${asset?.name ?? clip.assetId} · ${(duration / US).toFixed(2)}秒 · ${clip.playbackRate}×`}
                     style={{
                       left: (clip.timelineStartUs / US) * pixelsPerSecond,
                       width: Math.max(28, (duration / US) * pixelsPerSecond),
@@ -134,9 +165,19 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
                       event.stopPropagation();
                       onSelectClip(clip.id);
                     }}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onSelectClip(clip.id);
+                      setSpeedMenu({
+                        clipId: clip.id,
+                        x: Math.min(event.clientX, Math.max(8, window.innerWidth - 200)),
+                        y: Math.min(event.clientY, Math.max(8, window.innerHeight - 120)),
+                      });
+                    }}
                   >
                     <strong>{index + 1}. {asset?.name ?? clip.assetId}</strong>
-                    <span>{(duration / US).toFixed(2)}s</span>
+                    <span>{(duration / US).toFixed(2)}s · {clip.playbackRate}×</span>
                   </button>
                 );
               })}
@@ -188,6 +229,38 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
           </div>
         </div>
       </div>
+
+      {speedMenu && speedMenuClip && (
+        <div
+          className="clip-context-menu"
+          role="dialog"
+          aria-label="クリップの再生速度"
+          style={{ left: speedMenu.x, top: speedMenu.y }}
+          onPointerDown={(event) => event.stopPropagation()}
+          onContextMenu={(event) => event.preventDefault()}
+        >
+          <label>
+            再生速度
+            <select
+              autoFocus
+              value={speedMenuClip.playbackRate}
+              onChange={(event) => {
+                controller.execute({
+                  type: "setClipSpeed",
+                  clipId: speedMenuClip.id,
+                  playbackRate: Number(event.target.value),
+                });
+                setSpeedMenu(null);
+              }}
+            >
+              {PLAYBACK_RATES.map((rate) => (
+                <option key={rate} value={rate}>{rate}×</option>
+              ))}
+            </select>
+          </label>
+          <small>右クリックしたclipだけに適用</small>
+        </div>
+      )}
     </div>
   );
 }

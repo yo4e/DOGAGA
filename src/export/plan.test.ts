@@ -40,6 +40,20 @@ describe("export plan", () => {
     ]);
   });
 
+  it("maps source time and duration through playback rate", () => {
+    let state = baseState();
+    state = executeCommand(state, {
+      type: "addClip",
+      clip: { id: "c1", assetId: "v1", sourceInUs: 0, sourceOutUs: 8 * S },
+    });
+    state = executeCommand(state, { type: "setClipSpeed", clipId: "c1", playbackRate: 2 });
+
+    expect(exportDurationUs(state)).toBe(4 * S);
+    expect(videoLayersAt(state, 2 * S)).toEqual([
+      { clipId: "c1", assetId: "v1", sourceTimeUs: 4 * S, opacity: 1 },
+    ]);
+  });
+
   it("returns two weighted layers during a cross dissolve", () => {
     let state = withTwoClips();
     state = executeCommand(state, {
