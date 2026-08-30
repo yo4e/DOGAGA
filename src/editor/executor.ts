@@ -53,12 +53,17 @@ function validateFadeDuration(durationUs: number): void {
   }
 }
 
+function fitFadeDuration(durationUs: number, clipTimelineDurationUs: number): number {
+  const limitUs = Math.min(durationUs, clipTimelineDurationUs);
+  return [...FADE_DURATIONS_US].reverse().find((candidate) => candidate <= limitUs) ?? 0;
+}
+
 function clampFades(clip: VideoClip): VideoClip {
   const durationUs = clipDurationUs(clip);
   return {
     ...clip,
-    fadeInUs: Math.min(clip.fadeInUs, durationUs),
-    fadeOutUs: Math.min(clip.fadeOutUs, durationUs),
+    fadeInUs: fitFadeDuration(clip.fadeInUs, durationUs),
+    fadeOutUs: fitFadeDuration(clip.fadeOutUs, durationUs),
   };
 }
 
