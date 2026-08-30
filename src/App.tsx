@@ -47,6 +47,7 @@ function App() {
   const [activities, setActivities] = useState<AgentActivity[]>([]);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
   const [videoTargetTrackId, setVideoTargetTrackId] = useState<string | null>(null);
+  const [audioTargetTrackId, setAudioTargetTrackId] = useState<string | null>(null);
   const videoClips = useMemo(() => allVideoClips(state), [state.tracks]);
   const videoTracks = useMemo(() => getVideoTracks(state), [state.tracks]);
   const audioTracks = useMemo(() => getAudioTracks(state), [state.tracks]);
@@ -69,6 +70,13 @@ function App() {
       setVideoTargetTrackId(videoTracks[0].id);
     }
   }, [videoTargetTrackId, videoTracks]);
+
+  useEffect(() => {
+    if (!audioTracks.length) return;
+    if (!audioTargetTrackId || !audioTracks.some((track) => track.id === audioTargetTrackId)) {
+      setAudioTargetTrackId(audioTracks[0].id);
+    }
+  }, [audioTargetTrackId, audioTracks]);
 
   const run = (action: () => void): boolean => {
     try {
@@ -159,6 +167,7 @@ function App() {
       )
     : undefined;
   const videoTargetTrack = videoTracks.find((track) => track.id === videoTargetTrackId) ?? videoTracks[0] ?? null;
+  const audioTargetTrack = audioTracks.find((track) => track.id === audioTargetTrackId) ?? audioTracks[0] ?? null;
 
   const splitSelectedClip = (): boolean => {
     if (!selectedClip) return false;
@@ -250,6 +259,17 @@ function App() {
               ))}
             </select>
           </label>
+          <label>
+            音声の追加先
+            <select
+              value={audioTargetTrack?.id ?? ""}
+              onChange={(event) => setAudioTargetTrackId(event.target.value)}
+            >
+              {audioTracks.map((track) => (
+                <option key={track.id} value={track.id}>{track.name}</option>
+              ))}
+            </select>
+          </label>
         </div>
         {loading && <p>metadataを読み込み中…</p>}
         <div className="asset-list">
@@ -264,7 +284,9 @@ function App() {
                   {videoTargetTrack?.name ?? "V1"}末尾へ
                 </button>
               ) : (
-                <button type="button" onClick={() => setAudioTrack(asset.id)}>A1に設定</button>
+                <button type="button" onClick={() => setAudioTrack(asset.id, audioTargetTrack?.id)}>
+                  {audioTargetTrack?.name ?? "A1"}に設定
+                </button>
               )}
             </div>
           ))}
@@ -373,6 +395,7 @@ function App() {
                   <label>
                     Start (s)
                     <input
+                      aria-label={`${track.name}の開始位置（秒）`}
                       type="number"
                       min="0"
                       step="0.1"
@@ -390,6 +413,7 @@ function App() {
                   <label>
                     Volume
                     <input
+                      aria-label={`${track.name}の音量`}
                       type="range"
                       min="0"
                       max="1"
@@ -402,12 +426,17 @@ function App() {
                       }))}
                     />
                   </label>
-                  <button type="button" onClick={() => run(() => controller.execute({ type: "setAudio", trackId: track.id, audio: null }))}>音源解除</button>
+                  <button
+                    type="button"
+                    aria-label={`${track.name}の音源を解除`}
+                    onClick={() => run(() => controller.execute({ type: "setAudio", trackId: track.id, audio: null }))}
+                  >音源解除</button>
                 </>
               ) : (
                 <label>
                   音源を設定
                   <select
+                    aria-label={`${track.name}に設定する音源`}
                     defaultValue=""
                     onChange={(event) => {
                       const assetId = event.target.value;
