@@ -12,7 +12,7 @@ Premiere Proのような総合編集ソフトを再現するのではなく、MV
 - Repository: https://github.com/yo4e/DOGAGA
 - License: MIT
 
-公開版はCloudflare Pagesで配信しています。
+公開版はCloudflare Pagesで配信しています。Production branchは `main` です。
 
 ## 現在できること
 
@@ -84,8 +84,12 @@ WebMCP自体は対応browser / in-app browser側の実装状況に依存しま�
 
 Node.js 22を推奨します。
 
+新規clone後は、lockfileどおりの依存関係を再現するため `npm ci` を使います。
+
 ```bash
-npm install
+git clone https://github.com/yo4e/DOGAGA.git
+cd DOGAGA
+npm ci
 npm run dev
 ```
 
@@ -98,6 +102,8 @@ npm run build
 ```
 
 production build outputは `dist/` です。
+
+GitHub Actionsもclean checkout + Node.js 22 + `npm ci` で同じ検証を行います。
 
 ## 現在の制約 / 次の優先
 
