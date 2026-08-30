@@ -112,11 +112,15 @@ agentへ渡さないもの:
 
 ## 対応環境
 
-- Desktop Chromeを第一基準
-- WebMCP対応環境ではagent共同編集を利用可能
-- WebMCP非対応ブラウザでもmanual editor / actual preview / exportを利用可能
+- Desktop Chromeをmanual editor / Preview / Exportの第一基準にする
+- ChatGPT Site Toolsは、2026-08-30時点ではChatGPT desktop appのbuilt-in browserで利用可能
+- OpenAI公式Site Toolsは、2026-08-30時点ではChromeではまだ利用不可
+- Chrome自身のWebMCPはChrome 149以降のorigin trial、またはlocal testing flagで試験可能
+- WebMCP非対応browserでもmanual editor / actual preview / exportは利用可能
 
-WebMCP自体は対応browser / in-app browser側の実装状況に依存します。
+Codex Chrome extensionは既存Chrome profile/session/tabsを使うbrowser操作経路として利用できるが、現在のChrome Site Tools対応とは別物です。DOGAGAはChrome専用automationや独自extensionへ寄せず、標準WebMCP tool contractを維持します。
+
+詳細と検証手順は [WebMCP browser compatibility](docs/WEBMCP_BROWSER_COMPATIBILITY.md) を参照してください。
 
 ## ローカル起動
 
@@ -178,6 +182,7 @@ Challenge提出動画は3分未満の実演動画として別途用意します�
 - [開発ロードマップ](docs/DEVELOPMENT_ROADMAP.md)
 - [WebMCP競合調査](docs/WEBMCP_COMPETITOR_RESEARCH.md)
 - [WebMCP compact v0実装方針](docs/WEBMCP_MVP_IMPLEMENTATION_PLAN.md)
+- [WebMCP browser compatibility](docs/WEBMCP_BROWSER_COMPATIBILITY.md)
 - [権利・データ取扱方針](docs/RIGHTS_AND_DATA_POLICY.md)
 - [ブラウザ・コーデック対応表](docs/CODEC_SUPPORT_MATRIX.md)
 - [プロジェクト形式 v0.1](docs/PROJECT_FORMAT.md)
