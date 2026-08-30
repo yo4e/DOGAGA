@@ -75,7 +75,7 @@ function VideoLayer({ clip, state, runtime, playing }: {
       muted
       playsInline
       preload="auto"
-      style={{ opacity: opacityForClip(state, clip) }}
+      style={{ opacity: opacityForClip(state, clip), objectFit: state.canvas.fitMode }}
       onLoadedMetadata={(event) => syncVideo(event.currentTarget)}
     />
   );
@@ -86,6 +86,7 @@ export function Preview({ state, controller, runtime }: Props) {
   const clockRef = useRef<Clock | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const durationUs = timelineDurationUs(state);
+  const canvasRatio = state.canvas.width / state.canvas.height;
 
   const activeClips = useMemo(
     () => state.videoClips.filter(
@@ -191,7 +192,14 @@ export function Preview({ state, controller, runtime }: Props) {
 
   return (
     <div className="preview-editor">
-      <div className="preview-stage" aria-label="動画プレビュー">
+      <div
+        className="preview-stage"
+        aria-label={`${state.canvas.width}×${state.canvas.height} 動画プレビュー`}
+        style={{
+          aspectRatio: `${state.canvas.width} / ${state.canvas.height}`,
+          width: `min(100%, ${Math.round(canvasRatio * 560)}px)`,
+        }}
+      >
         {activeClips.map((clip) => (
           <VideoLayer key={clip.id} clip={clip} state={state} runtime={runtime} playing={playing} />
         ))}

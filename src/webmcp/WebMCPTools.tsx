@@ -9,6 +9,7 @@ import {
   moveClip,
   removeTransition,
   setAudio,
+  setCanvas,
   trimClip,
 } from "./handlers";
 import {
@@ -18,6 +19,7 @@ import {
   emptySchema,
   moveClipSchema,
   setAudioSchema,
+  setCanvasSchema,
   transitionIdSchema,
   trimClipSchema,
 } from "./schemas";
@@ -56,7 +58,7 @@ export function WebMCPTools({ controller, onActivity }: Props) {
 
   const getStateTool = useWebMCP({
     name: "get_project_state",
-    description: "Read DOGAGA's current agent-safe editor state, including loaded Asset IDs, clips, audio, transitions, and playhead. Local File handles and object URLs are never returned.",
+    description: "Read DOGAGA's current agent-safe editor state, including canvas size, loaded Asset IDs, clips, audio, transitions, and playhead. Local File handles and object URLs are never returned.",
     inputSchema: emptySchema,
     execute: execute("get_project_state", () => getProjectState(controller)),
   });
@@ -103,6 +105,13 @@ export function WebMCPTools({ controller, onActivity }: Props) {
     execute: execute("clear_audio", () => clearAudio(controller)),
   });
 
+  const setCanvasTool = useWebMCP({
+    name: "set_canvas",
+    description: "Set DOGAGA's project canvas preset and source fitting mode through the shared editor state.",
+    inputSchema: setCanvasSchema,
+    execute: execute("set_canvas", (args) => setCanvas(controller, args)),
+  });
+
   const addTransitionTool = useWebMCP({
     name: "add_transition",
     description: "Add a cross-dissolve between two adjacent video clips. Duration is integer microseconds and defaults to 500000.",
@@ -125,6 +134,7 @@ export function WebMCPTools({ controller, onActivity }: Props) {
     deleteClipTool,
     setAudioTool,
     clearAudioTool,
+    setCanvasTool,
     addTransitionTool,
     removeTransitionTool,
   ];

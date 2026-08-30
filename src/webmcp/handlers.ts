@@ -1,4 +1,9 @@
 import type { EditorController } from "../editor/controller";
+import {
+  CANVAS_PRESETS,
+  type CanvasFitMode,
+  type CanvasPresetId,
+} from "../editor/model";
 
 const DEFAULT_TRANSITION_US = 500_000;
 
@@ -123,6 +128,26 @@ export function setAudio(controller: EditorController, args: unknown) {
 export function clearAudio(controller: EditorController) {
   controller.execute({ type: "setAudio", audio: null });
   return { ok: true };
+}
+
+export function setCanvas(controller: EditorController, args: unknown) {
+  const input = record(args);
+  const preset = requiredString(input, "preset");
+  if (!Object.prototype.hasOwnProperty.call(CANVAS_PRESETS, preset)) {
+    throw new Error("presetはlandscape、portrait、square、portraitFourFiveのいずれかで指定してください");
+  }
+
+  const fitMode = input.fitMode ?? controller.getState().canvas.fitMode;
+  if (fitMode !== "contain" && fitMode !== "cover") {
+    throw new Error("fitModeはcontainまたはcoverで指定してください");
+  }
+
+  controller.execute({
+    type: "setCanvas",
+    preset: preset as CanvasPresetId,
+    fitMode: fitMode as CanvasFitMode,
+  });
+  return { ok: true, canvas: { ...controller.getState().canvas } };
 }
 
 export function addTransition(controller: EditorController, args: unknown) {

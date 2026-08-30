@@ -1,13 +1,21 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { EditorController } from "./editor/controller";
 import { EditorCommandError } from "./editor/executor";
-import type { AssetKind, VideoClip } from "./editor/model";
+import {
+  CANVAS_PRESETS,
+  type AssetKind,
+  type CanvasFitMode,
+  type CanvasPresetId,
+  type VideoClip,
+} from "./editor/model";
 import { MediaRuntime } from "./media/runtime";
 import { probeMediaFile } from "./media/probe";
 import { Preview } from "./preview/Preview";
+import { Timeline } from "./timeline/Timeline";
 import { WebMCPTools, type AgentActivity } from "./webmcp/WebMCPTools";
 
 const US = 1_000_000;
+const CANVAS_PRESET_IDS = Object.keys(CANVAS_PRESETS) as CanvasPresetId[];
 
 function newId(prefix: string): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -26,15 +34,28 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [activities, setActivities] = useState<AgentActivity[]>([]);
+  const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
 
   useEffect(() => () => runtime.dispose(), [runtime]);
 
-  const run = (action: () => void) => {
+  useEffect(() => {
+    if (!state.videoClips.length) {
+      if (selectedClipId !== null) setSelectedClipId(null);
+      return;
+    }
+    if (!state.videoClips.some((clip) => clip.id === selectedClipId)) {
+      setSelectedClipId(state.videoClips[0].id);
+    }
+  }, [selectedClipId, state.videoClips]);
+
+  const run = (action: () => void): boolean => {
     try {
       setError(null);
       action();
+      return true;
     } catch (caught) {
       setError(caught instanceof EditorCommandError || caught instanceof Error ? caught.message : String(caught));
+      return false;
     }
   };
 
@@ -58,17 +79,18 @@ function App() {
   const addVideo = (assetId: string) => {
     const asset = state.assets.find((item) => item.id === assetId);
     if (!asset || asset.kind !== "video") return;
-    run(() =>
+    const clipId = newId("clip");
+    if (run(() =>
       controller.execute({
         type: "addClip",
         clip: {
-          id: newId("clip"),
+          id: clipId,
           assetId,
           sourceInUs: 0,
           sourceOutUs: asset.durationUs,
         },
       }),
-    );
+    )) setSelectedClipId(clipId);
   };
 
   const setAudio = (assetId: string) => {
@@ -98,6 +120,21 @@ function App() {
 
   const recordActivity = (activity: AgentActivity) => {
     setActivities((current) => [activity, ...current].slice(0, 8));
+  };
+
+  const selectedClip = state.videoClips.find((clip) => clip.id === selectedClipId) ?? null;
+  const selectedIndex = selectedClip
+    ? state.videoClips.findIndex((clip) => clip.id === selectedClip.id)
+    : -1;
+  const nextClip = selectedIndex >= 0 ? state.videoClips[selectedIndex + 1] : undefined;
+  const selectedTransition = selectedClip && nextClip
+    ? state.transitions.find(
+        (transition) => transition.fromClipId === selectedClip.id && transition.toClipId === nextClip.id,
+      )
+    : undefined;
+
+  const setCanvas = (preset: CanvasPresetId, fitMode: CanvasFitMode) => {
+    run(() => controller.execute({ type: "setCanvas", preset, fitMode }));
   };
 
   return (
@@ -140,66 +177,100 @@ function App() {
       </section>
 
       <section className="panel preview-panel">
-        <h2>2. プレビュー</h2>
+        <div className="panel-heading">
+          <div>
+            <h2>2. プレビュー</h2>
+            <span className="canvas-resolution">{state.canvas.width} × {state.canvas.height}</span>
+          </div>
+          <div className="canvas-controls">
+            <label>
+              動画サイズ
+              <select
+                value={state.canvas.preset}
+                onChange={(event) => setCanvas(event.target.value as CanvasPresetId, state.canvas.fitMode)}
+              >
+                {CANVAS_PRESET_IDS.map((presetId) => (
+                  <option value={presetId} key={presetId}>{CANVAS_PRESETS[presetId].label}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              素材の表示
+              <select
+                value={state.canvas.fitMode}
+                onChange={(event) => setCanvas(state.canvas.preset, event.target.value as CanvasFitMode)}
+              >
+                <option value="contain">全体を表示</option>
+                <option value="cover">画面いっぱい</option>
+              </select>
+            </label>
+          </div>
+        </div>
         <Preview state={state} controller={controller} runtime={runtime} />
       </section>
 
       <section className="panel timeline-panel">
-        <h2>3. 簡易タイムライン</h2>
-        <div className="timeline-track">
-          {state.videoClips.map((clip, index) => {
-            const asset = state.assets.find((item) => item.id === clip.assetId);
-            const transition = state.transitions.find(
-              (item) => item.fromClipId === clip.id && item.toClipId === state.videoClips[index + 1]?.id,
-            );
-            return (
-              <article className="clip-card" key={clip.id}>
-                <strong>{asset?.name ?? clip.assetId}</strong>
-                <small>{seconds(clip.timelineStartUs)}s → {seconds(clip.timelineStartUs + clip.sourceOutUs - clip.sourceInUs)}s</small>
-                <small>source {seconds(clip.sourceInUs)}–{seconds(clip.sourceOutUs)}s</small>
-                <div className="button-row">
-                  <button type="button" disabled={index === 0} onClick={() => run(() => controller.execute({ type: "moveClip", clipId: clip.id, toIndex: index - 1 }))}>←</button>
-                  <button type="button" disabled={index === state.videoClips.length - 1} onClick={() => run(() => controller.execute({ type: "moveClip", clipId: clip.id, toIndex: index + 1 }))}>→</button>
-                  <button type="button" onClick={() => trim(clip, "in")}>In +0.1s</button>
-                  <button type="button" onClick={() => trim(clip, "out")}>Out -0.1s</button>
-                  <button type="button" onClick={() => run(() => controller.execute({ type: "deleteClip", clipId: clip.id }))}>削除</button>
-                </div>
-                {index < state.videoClips.length - 1 && (
-                  transition ? (
-                    <button
-                      type="button"
-                      className="transition-button active"
-                      onClick={() => run(() => controller.execute({ type: "removeTransition", transitionId: transition.id }))}
-                    >
-                      0.5s dissolveを外す
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="transition-button"
-                      onClick={() => run(() => controller.execute({
-                        type: "addTransition",
-                        transition: {
-                          id: newId("transition"),
-                          kind: "cross-dissolve",
-                          fromClipId: clip.id,
-                          toClipId: state.videoClips[index + 1].id,
-                          durationUs: 500_000,
-                        },
-                      }))}
-                    >
-                      次との境界に0.5s dissolve
-                    </button>
-                  )
-                )}
-              </article>
-            );
-          })}
-          {!state.videoClips.length && <p className="muted">動画clipを追加するとここに並びます。</p>}
-        </div>
+        <h2>3. タイムライン</h2>
+        <Timeline
+          state={state}
+          controller={controller}
+          selectedClipId={selectedClipId}
+          onSelectClip={setSelectedClipId}
+        />
+
+        {selectedClip ? (
+          <div className="clip-inspector">
+            <div className="inspector-summary">
+              <small>選択中のクリップ</small>
+              <strong>{state.assets.find((asset) => asset.id === selectedClip.assetId)?.name ?? selectedClip.assetId}</strong>
+              <span>
+                {seconds(selectedClip.timelineStartUs)}s → {seconds(selectedClip.timelineStartUs + selectedClip.sourceOutUs - selectedClip.sourceInUs)}s
+                ・素材 {seconds(selectedClip.sourceInUs)}–{seconds(selectedClip.sourceOutUs)}s
+              </span>
+            </div>
+            <div className="button-row inspector-actions">
+              <button type="button" disabled={selectedIndex === 0} onClick={() => run(() => controller.execute({ type: "moveClip", clipId: selectedClip.id, toIndex: selectedIndex - 1 }))}>前へ移動</button>
+              <button type="button" disabled={selectedIndex === state.videoClips.length - 1} onClick={() => run(() => controller.execute({ type: "moveClip", clipId: selectedClip.id, toIndex: selectedIndex + 1 }))}>後ろへ移動</button>
+              <button type="button" onClick={() => trim(selectedClip, "in")}>開始を0.1秒カット</button>
+              <button type="button" onClick={() => trim(selectedClip, "out")}>終了を0.1秒カット</button>
+              <button className="danger-button" type="button" onClick={() => run(() => controller.execute({ type: "deleteClip", clipId: selectedClip.id }))}>削除</button>
+            </div>
+            {nextClip && (
+              selectedTransition ? (
+                <button
+                  type="button"
+                  className="transition-button active"
+                  onClick={() => run(() => controller.execute({ type: "removeTransition", transitionId: selectedTransition.id }))}
+                >
+                  次のクリップとの0.5秒ディゾルブを外す
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="transition-button"
+                  onClick={() => run(() => controller.execute({
+                    type: "addTransition",
+                    transition: {
+                      id: newId("transition"),
+                      kind: "cross-dissolve",
+                      fromClipId: selectedClip.id,
+                      toClipId: nextClip.id,
+                      durationUs: 500_000,
+                    },
+                  }))}
+                >
+                  次のクリップとの境界に0.5秒ディゾルブ
+                </button>
+              )
+            )}
+          </div>
+        ) : (
+          <p className="muted inspector-empty">V1のクリップを選択すると、移動・カット・削除・ディゾルブ操作が表示されます。</p>
+        )}
+
         {state.audioClip && (
           <div className="audio-strip">
-            <strong>Audio</strong>
+            <strong>A1 音楽</strong>
             <span>{state.assets.find((asset) => asset.id === state.audioClip?.assetId)?.name}</span>
             <label>
               Start (s)

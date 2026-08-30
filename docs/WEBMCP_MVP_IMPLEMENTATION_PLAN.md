@@ -19,6 +19,7 @@ DOGAGAの通常ロードマップを4日で完成させるのではなく、WebM
 - local video / audioの読み込み
 - clip追加・並べ替え・trim・削除
 - audio start / volume
+- project canvas（16:9 / 9:16 / 1:1 / 4:5）と素材の表示方法
 - cross dissolve 1種類
 - timelineに沿った実動画preview
 - play / pause / seek
@@ -322,6 +323,7 @@ document.modelContext.registerTool(...)
 - timeline start
 - source in/out
 - audio start / volume
+- project canvas preset / fit mode
 - transitions
 - optional undo/redo state
 
@@ -340,7 +342,10 @@ document.modelContext.registerTool(...)
 - `trim_clip`
 - `delete_clip`
 - `set_audio`
+- `clear_audio`
+- `set_canvas`
 - `add_transition`
+- `remove_transition`
 
 optional:
 

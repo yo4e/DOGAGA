@@ -164,6 +164,22 @@ describe("executeCommand", () => {
     ).toThrowError(/volume/);
   });
 
+  it("stores a validated canvas preset in shared editor state", () => {
+    const state = executeCommand(baseState(), {
+      type: "setCanvas",
+      preset: "portrait",
+      fitMode: "cover",
+    });
+
+    expect(state.canvas).toEqual({
+      preset: "portrait",
+      width: 1080,
+      height: 1920,
+      fitMode: "cover",
+    });
+    expect(toSafeEditorState(state).canvas).toEqual(state.canvas);
+  });
+
   it("serializes only the agent-safe editor state", () => {
     let state = addVideo(baseState(), "c1", "v1", 5 * S);
     state = executeCommand(state, {

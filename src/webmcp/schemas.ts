@@ -57,6 +57,24 @@ export const setAudioSchema = {
   additionalProperties: false,
 } as const;
 
+export const setCanvasSchema = {
+  type: "object",
+  properties: {
+    preset: {
+      type: "string",
+      enum: ["landscape", "portrait", "square", "portraitFourFive"],
+      description: "Project canvas preset: landscape 16:9, portrait 9:16, square 1:1, or portraitFourFive 4:5",
+    },
+    fitMode: {
+      type: "string",
+      enum: ["contain", "cover"],
+      description: "contain shows the whole source; cover fills and crops the canvas",
+    },
+  },
+  required: ["preset"],
+  additionalProperties: false,
+} as const;
+
 export const addTransitionSchema = {
   type: "object",
   properties: {

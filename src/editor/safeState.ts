@@ -1,6 +1,7 @@
-import { timelineDurationUs, type EditorState } from "./model";
+import { timelineDurationUs, type CanvasSettings, type EditorState } from "./model";
 
 export type SafeEditorState = {
+  canvas: CanvasSettings;
   assets: Array<{
     id: string;
     kind: "video" | "audio";
@@ -37,6 +38,7 @@ export type SafeEditorState = {
 
 export function toSafeEditorState(state: EditorState): SafeEditorState {
   return {
+    canvas: { ...state.canvas },
     assets: state.assets.map(({ id, kind, name, durationUs, width, height }) => ({
       id,
       kind,

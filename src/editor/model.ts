@@ -4,6 +4,23 @@ export type TransitionId = string;
 
 export type AssetKind = "video" | "audio";
 
+export const CANVAS_PRESETS = {
+  landscape: { label: "横 16:9", width: 1920, height: 1080 },
+  portrait: { label: "縦 9:16", width: 1080, height: 1920 },
+  square: { label: "正方形 1:1", width: 1080, height: 1080 },
+  portraitFourFive: { label: "縦 4:5", width: 1080, height: 1350 },
+} as const;
+
+export type CanvasPresetId = keyof typeof CANVAS_PRESETS;
+export type CanvasFitMode = "contain" | "cover";
+
+export type CanvasSettings = {
+  preset: CanvasPresetId;
+  width: number;
+  height: number;
+  fitMode: CanvasFitMode;
+};
+
 export type AssetDescriptor = {
   id: AssetId;
   kind: AssetKind;
@@ -39,6 +56,7 @@ export type Transition = {
 };
 
 export type EditorState = {
+  canvas: CanvasSettings;
   assets: AssetDescriptor[];
   videoClips: VideoClip[];
   audioClip: AudioClip | null;
@@ -54,11 +72,21 @@ export type EditorCommand =
   | { type: "trimClip"; clipId: ClipId; sourceInUs: number; sourceOutUs: number }
   | { type: "deleteClip"; clipId: ClipId }
   | { type: "setAudio"; audio: AudioClip | null }
+  | { type: "setCanvas"; preset: CanvasPresetId; fitMode: CanvasFitMode }
   | { type: "addTransition"; transition: Transition }
   | { type: "removeTransition"; transitionId: TransitionId };
 
+export function createCanvasSettings(
+  preset: CanvasPresetId,
+  fitMode: CanvasFitMode,
+): CanvasSettings {
+  const { width, height } = CANVAS_PRESETS[preset];
+  return { preset, width, height, fitMode };
+}
+
 export function createEmptyEditorState(): EditorState {
   return {
+    canvas: createCanvasSettings("landscape", "contain"),
     assets: [],
     videoClips: [],
     audioClip: null,

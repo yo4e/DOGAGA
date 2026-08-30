@@ -1,5 +1,7 @@
 import {
+  CANVAS_PRESETS,
   clipDurationUs,
+  createCanvasSettings,
   type AssetDescriptor,
   type EditorCommand,
   type EditorState,
@@ -177,6 +179,18 @@ export function executeCommand(state: EditorState, command: EditorCommand): Edit
         fail("INVALID_VOLUME", "volumeは0から1の範囲で指定してください");
       }
       return { ...state, audioClip: { ...command.audio } };
+    }
+
+    case "setCanvas": {
+      const preset = (CANVAS_PRESETS as Record<string, { width: number; height: number }>)[command.preset];
+      if (!preset) fail("INVALID_CANVAS_PRESET", "未対応の動画サイズです");
+      if (command.fitMode !== "contain" && command.fitMode !== "cover") {
+        fail("INVALID_CANVAS_FIT", "未対応の素材表示方法です");
+      }
+      return {
+        ...state,
+        canvas: createCanvasSettings(command.preset, command.fitMode),
+      };
     }
 
     case "addTransition": {

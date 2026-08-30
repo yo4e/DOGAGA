@@ -6,6 +6,7 @@ import {
   getProjectState,
   moveClip,
   setAudio,
+  setCanvas,
   trimClip,
 } from "./handlers";
 
@@ -45,6 +46,18 @@ describe("WebMCP handlers", () => {
     setAudio(controller, { assetId: "a1", timelineStartUs: S, volume: 0.4 });
     expect(controller.getState().audioClip).toMatchObject({ assetId: "a1", timelineStartUs: S, volume: 0.4 });
     expect(() => setAudio(controller, { assetId: "a1", volume: 2 })).toThrow();
+  });
+
+  it("sets the canvas through the shared controller", () => {
+    const controller = controllerWithAssets();
+    setCanvas(controller, { preset: "square", fitMode: "cover" });
+    expect(controller.getState().canvas).toEqual({
+      preset: "square",
+      width: 1080,
+      height: 1080,
+      fitMode: "cover",
+    });
+    expect(() => setCanvas(controller, { preset: "cinema" })).toThrow();
   });
 
   it("creates an actual transition overlap", () => {
