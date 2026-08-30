@@ -2,30 +2,45 @@ import { useWebMCP } from "use-webmcp-tool";
 import type { EditorController } from "../editor/controller";
 import {
   addClip,
+  addTrack,
   addTransition,
   clearAudio,
   deleteClip,
   getProjectState,
   moveClip,
+  moveClipToTrack,
+  moveTrack,
+  removeTrack,
   removeTransition,
   setAudio,
   setCanvas,
   setClipFade,
   setClipSpeed,
+  setTrackMute,
+  setTrackOpacity,
+  setTrackVisibility,
   splitClip,
   trimClip,
 } from "./handlers";
 import {
   addClipSchema,
+  addTrackSchema,
   addTransitionSchema,
+  clearAudioSchema,
   clipIdSchema,
   emptySchema,
   moveClipSchema,
+  moveClipToTrackSchema,
+  moveTrackSchema,
   setAudioSchema,
   setCanvasSchema,
   setClipFadeSchema,
   setClipSpeedSchema,
+  setTrackMuteSchema,
+  setTrackOpacitySchema,
+  setTrackVisibilitySchema,
   splitClipSchema,
+  trackIdSchema,
   transitionIdSchema,
   trimClipSchema,
 } from "./schemas";
@@ -64,23 +79,72 @@ export function WebMCPTools({ controller, onActivity }: Props) {
 
   const getStateTool = useWebMCP({
     name: "get_project_state",
-    description: "Read DOGAGA's current agent-safe editor state, including canvas size, loaded Asset IDs, clips, audio, transitions, and playhead. Local File handles and object URLs are never returned.",
+    description: "Read DOGAGA's current agent-safe editor state, including video/audio tracks, canvas, loaded Asset IDs, clips, transitions, and playhead. Local File handles and object URLs are never returned.",
     inputSchema: emptySchema,
     execute: execute("get_project_state", () => getProjectState(controller)),
   });
 
+  const addTrackTool = useWebMCP({
+    name: "add_track",
+    description: "Add an empty video or audio track. DOGAGA generates a track ID; name is optional.",
+    inputSchema: addTrackSchema,
+    execute: execute("add_track", (args) => addTrack(controller, args)),
+  });
+
+  const removeTrackTool = useWebMCP({
+    name: "remove_track",
+    description: "Remove an empty non-default track. V1 and A1 cannot be removed.",
+    inputSchema: trackIdSchema,
+    execute: execute("remove_track", (args) => removeTrack(controller, args)),
+  });
+
+  const moveTrackTool = useWebMCP({
+    name: "move_track",
+    description: "Reorder a video or audio track within tracks of the same kind using a zero-based index. Higher video order renders above lower order.",
+    inputSchema: moveTrackSchema,
+    execute: execute("move_track", (args) => moveTrack(controller, args)),
+  });
+
+  const setTrackOpacityTool = useWebMCP({
+    name: "set_track_opacity",
+    description: "Set a video track opacity from 0 to 1. Preview and export use this value.",
+    inputSchema: setTrackOpacitySchema,
+    execute: execute("set_track_opacity", (args) => setTrackOpacity(controller, args)),
+  });
+
+  const setTrackVisibilityTool = useWebMCP({
+    name: "set_track_visibility",
+    description: "Show or hide a video track in preview and export.",
+    inputSchema: setTrackVisibilitySchema,
+    execute: execute("set_track_visibility", (args) => setTrackVisibility(controller, args)),
+  });
+
+  const setTrackMuteTool = useWebMCP({
+    name: "set_track_mute",
+    description: "Mute or unmute an audio track in preview and export.",
+    inputSchema: setTrackMuteSchema,
+    execute: execute("set_track_mute", (args) => setTrackMute(controller, args)),
+  });
+
   const addClipTool = useWebMCP({
     name: "add_clip",
-    description: "Add a loaded video Asset to DOGAGA's single video track. Use Asset IDs returned by get_project_state.",
+    description: "Add a loaded video Asset to a video track. trackId is optional and defaults to V1. Use Asset and track IDs returned by get_project_state.",
     inputSchema: addClipSchema,
     execute: execute("add_clip", (args) => addClip(controller, args)),
   });
 
   const moveClipTool = useWebMCP({
     name: "move_clip",
-    description: "Reorder an existing video clip by zero-based track index.",
+    description: "Reorder an existing video clip by zero-based index within its current video track.",
     inputSchema: moveClipSchema,
     execute: execute("move_clip", (args) => moveClip(controller, args)),
+  });
+
+  const moveClipToTrackTool = useWebMCP({
+    name: "move_clip_to_track",
+    description: "Move an existing video clip to another video track, optionally at a zero-based target index.",
+    inputSchema: moveClipToTrackSchema,
+    execute: execute("move_clip_to_track", (args) => moveClipToTrack(controller, args)),
   });
 
   const trimClipTool = useWebMCP({
@@ -92,7 +156,7 @@ export function WebMCPTools({ controller, onActivity }: Props) {
 
   const splitClipTool = useWebMCP({
     name: "split_clip",
-    description: "Split a video clip into two at a global timeline position. If timelineUs is omitted, DOGAGA uses the current playhead. The left half keeps the original clip ID and the right half receives a new ID.",
+    description: "Split a video clip into two at a global timeline position. If timelineUs is omitted, DOGAGA uses the current playhead. The split stays in the same video track.",
     inputSchema: splitClipSchema,
     execute: execute("split_clip", (args) => splitClip(controller, args)),
   });
@@ -113,23 +177,23 @@ export function WebMCPTools({ controller, onActivity }: Props) {
 
   const deleteClipTool = useWebMCP({
     name: "delete_clip",
-    description: "Delete an existing video clip from the timeline.",
+    description: "Delete an existing video clip from its video track.",
     inputSchema: clipIdSchema,
     execute: execute("delete_clip", (args) => deleteClip(controller, args)),
   });
 
   const setAudioTool = useWebMCP({
     name: "set_audio",
-    description: "Set or update DOGAGA's single audio track using a loaded audio Asset ID, with optional timeline start, source range, and volume.",
+    description: "Set or update one audio clip on an audio track using a loaded audio Asset ID. trackId is optional and defaults to A1.",
     inputSchema: setAudioSchema,
     execute: execute("set_audio", (args) => setAudio(controller, args)),
   });
 
   const clearAudioTool = useWebMCP({
     name: "clear_audio",
-    description: "Remove the current audio clip from the timeline without deleting the loaded Asset.",
-    inputSchema: emptySchema,
-    execute: execute("clear_audio", () => clearAudio(controller)),
+    description: "Remove the current audio clip from an audio track without deleting the loaded Asset. trackId defaults to A1.",
+    inputSchema: clearAudioSchema,
+    execute: execute("clear_audio", (args) => clearAudio(controller, args)),
   });
 
   const setCanvasTool = useWebMCP({
@@ -141,7 +205,7 @@ export function WebMCPTools({ controller, onActivity }: Props) {
 
   const addTransitionTool = useWebMCP({
     name: "add_transition",
-    description: "Add a cross-dissolve between two adjacent video clips. Duration is integer microseconds and defaults to 500000.",
+    description: "Add a cross-dissolve between two adjacent video clips on the same video track. Duration defaults to 500000 microseconds.",
     inputSchema: addTransitionSchema,
     execute: execute("add_transition", (args) => addTransition(controller, args)),
   });
@@ -155,8 +219,15 @@ export function WebMCPTools({ controller, onActivity }: Props) {
 
   const tools = [
     getStateTool,
+    addTrackTool,
+    removeTrackTool,
+    moveTrackTool,
+    setTrackOpacityTool,
+    setTrackVisibilityTool,
+    setTrackMuteTool,
     addClipTool,
     moveClipTool,
+    moveClipToTrackTool,
     trimClipTool,
     splitClipTool,
     setClipSpeedTool,
