@@ -1,0 +1,87 @@
+.export-panel {
+  grid-column: 1 / -1;
+}
+
+.export-panel > .muted {
+  margin-top: -4px;
+  max-width: 780px;
+  line-height: 1.6;
+}
+
+.export-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.export-progress,
+.export-result {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid #d8d8d2;
+  border-radius: 12px;
+  background: #f8f8f5;
+}
+
+.export-progress {
+  display: grid;
+  gap: 7px;
+}
+
+.export-progress progress {
+  width: 100%;
+  height: 12px;
+}
+
+.export-progress span,
+.export-result span {
+  color: #555;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.export-result {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px 16px;
+  align-items: center;
+}
+
+.export-result strong,
+.export-result span {
+  grid-column: 1;
+}
+
+.download-link {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  display: inline-block;
+  border: 1px solid #c9c9c2;
+  border-radius: 8px;
+  background: #fff;
+  color: #171717;
+  padding: 7px 10px;
+  text-decoration: none;
+}
+
+.download-link:hover {
+  background: #f0f0eb;
+  border-color: #a9a9a1;
+}
+
+.export-error {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #e7bcbc;
+  border-radius: 10px;
+  background: #fff1f1;
+  color: #8a1717;
+}
+
+@media (max-width: 760px) {
+  .export-panel { grid-column: 1; }
+  .export-result { grid-template-columns: 1fr; }
+  .download-link { grid-column: 1; grid-row: auto; justify-self: start; margin-top: 5px; }
+}
