@@ -108,6 +108,18 @@ export function setClipSpeed(controller: EditorController, args: unknown) {
   return { ok: true, clipId, playbackRate };
 }
 
+export function setClipFade(controller: EditorController, args: unknown) {
+  const input = record(args);
+  const clipId = requiredString(input, "clipId");
+  const fadeInUs = optionalInteger(input, "fadeInUs");
+  const fadeOutUs = optionalInteger(input, "fadeOutUs");
+  if (fadeInUs === undefined || fadeOutUs === undefined) {
+    throw new Error("fadeInUsとfadeOutUsは必須です");
+  }
+  controller.execute({ type: "setClipFade", clipId, fadeInUs, fadeOutUs });
+  return { ok: true, clipId, fadeInUs, fadeOutUs };
+}
+
 export function deleteClip(controller: EditorController, args: unknown) {
   const input = record(args);
   const clipId = requiredString(input, "clipId");
