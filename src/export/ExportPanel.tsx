@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { EditorState } from "../editor/model";
 import type { MediaRuntime } from "../media/runtime";
 import { exportProject, type ExportResult } from "./exporter";
+import "./export.css";
 
 const US = 1_000_000;
 
