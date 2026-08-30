@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { EditorController } from "../editor/controller";
-import { clipDurationUs, timelineDurationUs, type EditorState, type VideoClip } from "../editor/model";
+import {
+  clipDurationUs,
+  sourceTimeUsAt,
+  timelineDurationUs,
+  type EditorState,
+  type VideoClip,
+} from "../editor/model";
 import type { MediaRuntime } from "../media/runtime";
 
 const US = 1_000_000;
@@ -43,12 +49,10 @@ function VideoLayer({ clip, state, runtime, playing }: {
 }) {
   const ref = useRef<HTMLVideoElement>(null);
   const binding = runtime.get(clip.assetId);
-  const targetSeconds = Math.max(
-    0,
-    (clip.sourceInUs + (state.playheadUs - clip.timelineStartUs)) / US,
-  );
+  const targetSeconds = sourceTimeUsAt(clip, state.playheadUs) / US;
 
   const syncVideo = (video: HTMLVideoElement) => {
+    video.playbackRate = clip.playbackRate;
     if (video.readyState > 0 && (!playing || Math.abs(video.currentTime - targetSeconds) > 0.12)) {
       video.currentTime = targetSeconds;
     }
@@ -63,7 +67,7 @@ function VideoLayer({ clip, state, runtime, playing }: {
     const video = ref.current;
     if (!video || !binding) return;
     syncVideo(video);
-  }, [binding, playing, targetSeconds]);
+  }, [binding, clip.playbackRate, playing, targetSeconds]);
 
   if (!binding) return null;
 
