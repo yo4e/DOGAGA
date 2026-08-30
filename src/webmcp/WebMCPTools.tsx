@@ -10,6 +10,7 @@ import {
   removeTransition,
   setAudio,
   setCanvas,
+  splitClip,
   trimClip,
 } from "./handlers";
 import {
@@ -20,6 +21,7 @@ import {
   moveClipSchema,
   setAudioSchema,
   setCanvasSchema,
+  splitClipSchema,
   transitionIdSchema,
   trimClipSchema,
 } from "./schemas";
@@ -84,6 +86,13 @@ export function WebMCPTools({ controller, onActivity }: Props) {
     execute: execute("trim_clip", (args) => trimClip(controller, args)),
   });
 
+  const splitClipTool = useWebMCP({
+    name: "split_clip",
+    description: "Split a video clip into two at a global timeline position. If timelineUs is omitted, DOGAGA uses the current playhead. The left half keeps the original clip ID and the right half receives a new ID.",
+    inputSchema: splitClipSchema,
+    execute: execute("split_clip", (args) => splitClip(controller, args)),
+  });
+
   const deleteClipTool = useWebMCP({
     name: "delete_clip",
     description: "Delete an existing video clip from the timeline.",
@@ -131,6 +140,7 @@ export function WebMCPTools({ controller, onActivity }: Props) {
     addClipTool,
     moveClipTool,
     trimClipTool,
+    splitClipTool,
     deleteClipTool,
     setAudioTool,
     clearAudioTool,
