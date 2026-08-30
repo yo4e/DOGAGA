@@ -1,7 +1,9 @@
 import {
   CANVAS_PRESETS,
+  PLAYBACK_RATES,
   clipDurationUs,
   createCanvasSettings,
+  sourceTimeUsAt,
   type AssetDescriptor,
   type EditorCommand,
   type EditorState,
@@ -35,6 +37,12 @@ function validateRange(asset: AssetDescriptor, sourceInUs: number, sourceOutUs: 
   }
   if (sourceInUs < 0 || sourceOutUs <= sourceInUs || sourceOutUs > asset.durationUs) {
     fail("INVALID_SOURCE_RANGE", "sourceIn/sourceOut が素材の範囲外です");
+  }
+}
+
+function validatePlaybackRate(playbackRate: number): void {
+  if (!(PLAYBACK_RATES as readonly number[]).includes(playbackRate)) {
+    fail("INVALID_PLAYBACK_RATE", `再生速度は ${PLAYBACK_RATES.join(" / ")}x のいずれかで指定してください`);
   }
 }
 
@@ -112,6 +120,8 @@ export function executeCommand(state: EditorState, command: EditorCommand): Edit
       const asset = getAsset(state, command.clip.assetId);
       if (asset.kind !== "video") fail("ASSET_KIND_MISMATCH", "video clipにはvideo Assetが必要です");
       validateRange(asset, command.clip.sourceInUs, command.clip.sourceOutUs);
+      const playbackRate = command.clip.playbackRate ?? 1;
+      validatePlaybackRate(playbackRate);
 
       const atIndex = command.atIndex ?? state.videoClips.length;
       if (!Number.isInteger(atIndex) || atIndex < 0 || atIndex > state.videoClips.length) {
@@ -119,7 +129,7 @@ export function executeCommand(state: EditorState, command: EditorCommand): Edit
       }
 
       const next = [...state.videoClips];
-      next.splice(atIndex, 0, { ...command.clip, timelineStartUs: 0 });
+      next.splice(atIndex, 0, { ...command.clip, playbackRate, timelineStartUs: 0 });
       return finalizeVideoChange(state, next);
     }
 
@@ -174,7 +184,7 @@ export function executeCommand(state: EditorState, command: EditorCommand): Edit
         fail("INVALID_SPLIT_POSITION", "split位置はclipの開始・終了より内側に指定してください");
       }
 
-      const sourceSplitUs = clip.sourceInUs + (command.atTimelineUs - clipStartUs);
+      const sourceSplitUs = sourceTimeUsAt(clip, command.atTimelineUs);
       if (sourceSplitUs <= clip.sourceInUs || sourceSplitUs >= clip.sourceOutUs) {
         fail("INVALID_SPLIT_POSITION", "split位置を素材時刻へ変換できませんでした");
       }
@@ -186,6 +196,7 @@ export function executeCommand(state: EditorState, command: EditorCommand): Edit
         timelineStartUs: 0,
         sourceInUs: sourceSplitUs,
         sourceOutUs: clip.sourceOutUs,
+        playbackRate: clip.playbackRate,
       };
       const next = [...state.videoClips];
       next.splice(index, 1, left, right);
@@ -196,6 +207,17 @@ export function executeCommand(state: EditorState, command: EditorCommand): Edit
           : transition,
       );
       return finalizeVideoChange(state, next, remappedTransitions);
+    }
+
+    case "setClipSpeed": {
+      const index = state.videoClips.findIndex((clip) => clip.id === command.clipId);
+      if (index < 0) fail("CLIP_NOT_FOUND", `Clip ${command.clipId} が見つかりません`);
+      validatePlaybackRate(command.playbackRate);
+      if (state.videoClips[index].playbackRate === command.playbackRate) return state;
+
+      const next = [...state.videoClips];
+      next[index] = { ...next[index], playbackRate: command.playbackRate };
+      return finalizeVideoChange(state, next);
     }
 
     case "deleteClip": {
