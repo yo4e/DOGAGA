@@ -1,4 +1,11 @@
-import { clipDurationUs, timelineDurationUs, type CanvasFitMode, type EditorState, type VideoClip } from "../editor/model";
+import {
+  clipDurationUs,
+  sourceTimeUsAt,
+  timelineDurationUs,
+  type CanvasFitMode,
+  type EditorState,
+  type VideoClip,
+} from "../editor/model";
 
 export type ExportVideoLayer = {
   clipId: string;
@@ -63,7 +70,7 @@ export function videoLayersAt(state: EditorState, timelineUs: number): ExportVid
     .map((clip) => ({
       clipId: clip.id,
       assetId: clip.assetId,
-      sourceTimeUs: clip.sourceInUs + (timelineUs - clip.timelineStartUs),
+      sourceTimeUs: sourceTimeUsAt(clip, timelineUs),
       opacity: opacityAt(state, clip, timelineUs),
     }));
 }
