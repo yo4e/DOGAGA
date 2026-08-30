@@ -99,6 +99,15 @@ export function splitClip(controller: EditorController, args: unknown) {
   return { ok: true, clipId, newClipId, timelineUs };
 }
 
+export function setClipSpeed(controller: EditorController, args: unknown) {
+  const input = record(args);
+  const clipId = requiredString(input, "clipId");
+  const playbackRate = optionalNumber(input, "playbackRate");
+  if (playbackRate === undefined) throw new Error("playbackRateは必須です");
+  controller.execute({ type: "setClipSpeed", clipId, playbackRate });
+  return { ok: true, clipId, playbackRate };
+}
+
 export function deleteClip(controller: EditorController, args: unknown) {
   const input = record(args);
   const clipId = requiredString(input, "clipId");
