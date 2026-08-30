@@ -58,7 +58,6 @@ export function WebMCPTools({ controller, onActivity }: Props) {
     name: "get_project_state",
     description: "Read DOGAGA's current agent-safe editor state, including loaded Asset IDs, clips, audio, transitions, and playhead. Local File handles and object URLs are never returned.",
     inputSchema: emptySchema,
-    annotations: { readOnlyHint: true },
     execute: execute("get_project_state", () => getProjectState(controller)),
   });
 
