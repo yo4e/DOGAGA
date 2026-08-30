@@ -21,6 +21,7 @@ import {
   type EditorTrack,
   type VideoTrack,
 } from "../editor/model";
+import { getTimelineRows, getTimelineTrackMoveIndex } from "./rows";
 import "./context-menu.css";
 
 const US = 1_000_000;
@@ -65,17 +66,13 @@ function fadeLabel(durationUs: number): string {
   return durationUs === 0 ? "なし" : `${durationUs / US}秒`;
 }
 
-function trackRows(state: EditorState): EditorTrack[] {
-  return [...getVideoTracks(state), ...getAudioTracks(state)];
-}
-
 export function Timeline({ state, controller, selectedClipId, onSelectClip }: Props) {
   const [pixelsPerSecond, setPixelsPerSecond] = useState<(typeof SCALE_OPTIONS)[number]>(48);
   const [clipMenu, setClipMenu] = useState<ClipMenu | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const videoTracks = useMemo(() => getVideoTracks(state), [state.tracks]);
   const audioTracks = useMemo(() => getAudioTracks(state), [state.tracks]);
-  const rows = useMemo(() => trackRows(state), [state.tracks]);
+  const rows = useMemo(() => getTimelineRows(state), [state.tracks]);
   const durationUs = timelineDurationUs(state);
   const contentSeconds = Math.max(10, Math.ceil(durationUs / US));
   const canvasWidth = Math.max(720, contentSeconds * pixelsPerSecond);
@@ -150,7 +147,8 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
 
   const renderTrackControls = (track: EditorTrack) => {
     const sameKind = track.kind === "video" ? videoTracks : audioTracks;
-    const index = sameKind.findIndex((candidate) => candidate.id === track.id);
+    const upIndex = getTimelineTrackMoveIndex(track, sameKind, "up");
+    const downIndex = getTimelineTrackMoveIndex(track, sameKind, "down");
     const isDefault = track.id === DEFAULT_VIDEO_TRACK_ID || track.id === DEFAULT_AUDIO_TRACK_ID;
     return (
       <div className="track-label" key={track.id}>
@@ -164,13 +162,14 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
               <button
                 type="button"
                 title={track.visible ? "非表示にする" : "表示する"}
+                aria-label={`${track.name}を${track.visible ? "非表示" : "表示"}にする`}
                 onClick={() => controller.execute({ type: "setTrackVisibility", trackId: track.id, visible: !track.visible })}
               >
-                {track.visible ? "👁" : "－"}
+                {track.visible ? "隠す" : "表示"}
               </button>
               <input
-                aria-label={`${track.name} opacity`}
-                title={`Opacity ${Math.round(track.opacity * 100)}%`}
+                aria-label={`${track.name}の不透明度`}
+                title={`${track.name} 不透明度 ${Math.round(track.opacity * 100)}%`}
                 type="range"
                 min="0"
                 max="1"
@@ -187,30 +186,38 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
             <button
               type="button"
               title={track.muted ? "ミュート解除" : "ミュート"}
+              aria-label={`${track.name}を${track.muted ? "ミュート解除" : "ミュート"}する`}
               onClick={() => controller.execute({ type: "setTrackMute", trackId: track.id, muted: !track.muted })}
             >
-              {track.muted ? "M" : "♪"}
+              {track.muted ? "解除" : "消音"}
             </button>
           )}
           <button
             type="button"
             title="上へ"
-            disabled={index === sameKind.length - 1}
-            onClick={() => controller.execute({ type: "moveTrack", trackId: track.id, toIndex: index + 1 })}
-          >↑</button>
+            aria-label={`${track.name}を上へ移動`}
+            disabled={upIndex === null}
+            onClick={() => {
+              if (upIndex !== null) controller.execute({ type: "moveTrack", trackId: track.id, toIndex: upIndex });
+            }}
+          >上</button>
           <button
             type="button"
             title="下へ"
-            disabled={index === 0}
-            onClick={() => controller.execute({ type: "moveTrack", trackId: track.id, toIndex: index - 1 })}
-          >↓</button>
+            aria-label={`${track.name}を下へ移動`}
+            disabled={downIndex === null}
+            onClick={() => {
+              if (downIndex !== null) controller.execute({ type: "moveTrack", trackId: track.id, toIndex: downIndex });
+            }}
+          >下</button>
           {!isDefault && (
             <button
               type="button"
               title={track.clips.length ? "空にすると削除できます" : "trackを削除"}
+              aria-label={`${track.name}を削除`}
               disabled={track.clips.length > 0}
               onClick={() => controller.execute({ type: "removeTrack", trackId: track.id })}
-            >×</button>
+            >削除</button>
           )}
         </div>
       </div>
