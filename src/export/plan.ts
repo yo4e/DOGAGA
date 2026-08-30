@@ -1,6 +1,8 @@
 import {
+  allVideoClips,
   clipDurationUs,
   clipFadeOpacityAt,
+  getVideoTracks,
   sourceTimeUsAt,
   timelineDurationUs,
   type CanvasFitMode,
@@ -9,6 +11,7 @@ import {
 } from "../editor/model";
 
 export type ExportVideoLayer = {
+  trackId: string;
   clipId: string;
   assetId: string;
   sourceTimeUs: number;
@@ -43,8 +46,9 @@ function clipEndUs(clip: VideoClip): number {
 }
 
 function transitionOpacityAt(state: EditorState, clip: VideoClip, timelineUs: number): number {
+  const clips = allVideoClips(state);
   for (const transition of state.transitions) {
-    const to = state.videoClips.find((candidate) => candidate.id === transition.toClipId);
+    const to = clips.find((candidate) => candidate.id === transition.toClipId);
     if (!to) continue;
 
     const startUs = to.timelineStartUs;
@@ -59,8 +63,13 @@ function transitionOpacityAt(state: EditorState, clip: VideoClip, timelineUs: nu
   return 1;
 }
 
-function opacityAt(state: EditorState, clip: VideoClip, timelineUs: number): number {
-  return transitionOpacityAt(state, clip, timelineUs) * clipFadeOpacityAt(clip, timelineUs);
+function opacityAt(
+  state: EditorState,
+  clip: VideoClip,
+  trackOpacity: number,
+  timelineUs: number,
+): number {
+  return trackOpacity * transitionOpacityAt(state, clip, timelineUs) * clipFadeOpacityAt(clip, timelineUs);
 }
 
 export function exportDurationUs(state: EditorState): number {
@@ -70,14 +79,18 @@ export function exportDurationUs(state: EditorState): number {
 export function videoLayersAt(state: EditorState, timelineUs: number): ExportVideoLayer[] {
   if (!Number.isFinite(timelineUs) || timelineUs < 0) return [];
 
-  return state.videoClips
-    .filter((clip) => timelineUs >= clip.timelineStartUs && timelineUs < clipEndUs(clip))
-    .map((clip) => ({
-      clipId: clip.id,
-      assetId: clip.assetId,
-      sourceTimeUs: sourceTimeUsAt(clip, timelineUs),
-      opacity: opacityAt(state, clip, timelineUs),
-    }));
+  return getVideoTracks(state).flatMap((track) => {
+    if (!track.visible || track.opacity <= 0) return [];
+    return track.clips
+      .filter((clip) => timelineUs >= clip.timelineStartUs && timelineUs < clipEndUs(clip))
+      .map((clip) => ({
+        trackId: track.id,
+        clipId: clip.id,
+        assetId: clip.assetId,
+        sourceTimeUs: sourceTimeUsAt(clip, timelineUs),
+        opacity: opacityAt(state, clip, track.opacity, timelineUs),
+      }));
+  });
 }
 
 export function computeDrawRegion(
