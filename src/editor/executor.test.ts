@@ -39,6 +39,21 @@ describe("executeCommand", () => {
     expect(state.videoClips.map((clip) => clip.timelineStartUs)).toEqual([0, 3 * S]);
   });
 
+  it("changes timeline duration and ripples following clips at playback rate", () => {
+    let state = addVideo(baseState(), "c1", "v1", 8 * S);
+    state = addVideo(state, "c2", "v2", 4 * S);
+    state = executeCommand(state, { type: "setClipSpeed", clipId: "c1", playbackRate: 2 });
+
+    expect(state.videoClips[0]).toMatchObject({ playbackRate: 2 });
+    expect(state.videoClips[1].timelineStartUs).toBe(4 * S);
+    expect(timelineDurationUs(state)).toBe(8 * S);
+    expect(() => executeCommand(state, {
+      type: "setClipSpeed",
+      clipId: "c1",
+      playbackRate: 3,
+    })).toThrowError(/再生速度/);
+  });
+
   it("splits a clip at timeline time while preserving total duration", () => {
     let state = addVideo(baseState(), "c1", "v1", 6 * S);
     state = executeCommand(state, {
@@ -55,6 +70,7 @@ describe("executeCommand", () => {
         timelineStartUs: 0,
         sourceInUs: 0,
         sourceOutUs: 2 * S,
+        playbackRate: 1,
       },
       {
         id: "c1-right",
@@ -62,9 +78,31 @@ describe("executeCommand", () => {
         timelineStartUs: 2 * S,
         sourceInUs: 2 * S,
         sourceOutUs: 6 * S,
+        playbackRate: 1,
       },
     ]);
     expect(timelineDurationUs(state)).toBe(6 * S);
+  });
+
+  it("maps a split through playback rate into source time", () => {
+    let state = addVideo(baseState(), "c1", "v1", 8 * S);
+    state = executeCommand(state, { type: "setClipSpeed", clipId: "c1", playbackRate: 2 });
+    state = executeCommand(state, {
+      type: "splitClip",
+      clipId: "c1",
+      atTimelineUs: 2 * S,
+      newClipId: "right",
+    });
+
+    expect(state.videoClips.map((clip) => ({
+      sourceInUs: clip.sourceInUs,
+      sourceOutUs: clip.sourceOutUs,
+      playbackRate: clip.playbackRate,
+      timelineStartUs: clip.timelineStartUs,
+    }))).toEqual([
+      { sourceInUs: 0, sourceOutUs: 4 * S, playbackRate: 2, timelineStartUs: 0 },
+      { sourceInUs: 4 * S, sourceOutUs: 8 * S, playbackRate: 2, timelineStartUs: 2 * S },
+    ]);
   });
 
   it("moves an outgoing transition to the right half after split", () => {
@@ -258,6 +296,7 @@ describe("executeCommand", () => {
 
   it("serializes only the agent-safe editor state", () => {
     let state = addVideo(baseState(), "c1", "v1", 5 * S);
+    state = executeCommand(state, { type: "setClipSpeed", clipId: "c1", playbackRate: 1.5 });
     state = executeCommand(state, {
       type: "setAudio",
       audio: {
@@ -270,7 +309,9 @@ describe("executeCommand", () => {
       },
     });
 
-    const serialized = JSON.stringify(toSafeEditorState(state));
+    const safe = toSafeEditorState(state);
+    const serialized = JSON.stringify(safe);
+    expect(safe.videoClips[0].playbackRate).toBe(1.5);
     expect(serialized).toContain("one.mp4");
     expect(serialized).not.toContain("objectUrl");
     expect(serialized).not.toContain("fileHandle");
