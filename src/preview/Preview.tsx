@@ -43,20 +43,26 @@ function VideoLayer({ clip, state, runtime, playing }: {
 }) {
   const ref = useRef<HTMLVideoElement>(null);
   const binding = runtime.get(clip.assetId);
-  const targetSeconds = (clip.sourceInUs + (state.playheadUs - clip.timelineStartUs)) / US;
+  const targetSeconds = Math.max(
+    0,
+    (clip.sourceInUs + (state.playheadUs - clip.timelineStartUs)) / US,
+  );
 
-  useEffect(() => {
-    const video = ref.current;
-    if (!video || !binding) return;
-    const boundedTarget = Math.max(0, targetSeconds);
-    if (!playing || Math.abs(video.currentTime - boundedTarget) > 0.12) {
-      video.currentTime = boundedTarget;
+  const syncVideo = (video: HTMLVideoElement) => {
+    if (video.readyState > 0 && (!playing || Math.abs(video.currentTime - targetSeconds) > 0.12)) {
+      video.currentTime = targetSeconds;
     }
     if (playing) {
       if (video.paused) void video.play().catch(() => undefined);
     } else {
       video.pause();
     }
+  };
+
+  useEffect(() => {
+    const video = ref.current;
+    if (!video || !binding) return;
+    syncVideo(video);
   }, [binding, playing, targetSeconds]);
 
   if (!binding) return null;
@@ -70,6 +76,7 @@ function VideoLayer({ clip, state, runtime, playing }: {
       playsInline
       preload="auto"
       style={{ opacity: opacityForClip(state, clip) }}
+      onLoadedMetadata={(event) => syncVideo(event.currentTarget)}
     />
   );
 }
@@ -88,6 +95,33 @@ export function Preview({ state, controller, runtime }: Props) {
   );
 
   const audioBinding = state.audioClip ? runtime.get(state.audioClip.assetId) : undefined;
+
+  const syncAudio = (audio: HTMLAudioElement) => {
+    const clip = state.audioClip;
+    if (!clip || !audioBinding) {
+      audio.pause();
+      return;
+    }
+
+    audio.volume = clip.volume;
+    const audioEndUs = clip.timelineStartUs + (clip.sourceOutUs - clip.sourceInUs);
+    const active = state.playheadUs >= clip.timelineStartUs && state.playheadUs < audioEndUs;
+
+    if (!active) {
+      audio.pause();
+      return;
+    }
+
+    const target = (clip.sourceInUs + (state.playheadUs - clip.timelineStartUs)) / US;
+    if (audio.readyState > 0 && (!playing || Math.abs(audio.currentTime - target) > 0.15)) {
+      audio.currentTime = target;
+    }
+    if (playing) {
+      if (audio.paused) void audio.play().catch(() => undefined);
+    } else {
+      audio.pause();
+    }
+  };
 
   const seek = (nextUs: number) => {
     controller.setPlayheadUs(nextUs);
@@ -124,27 +158,8 @@ export function Preview({ state, controller, runtime }: Props) {
 
   useEffect(() => {
     const audio = audioRef.current;
-    const clip = state.audioClip;
-    if (!audio || !clip || !audioBinding) return;
-
-    audio.volume = clip.volume;
-    const audioEndUs = clip.timelineStartUs + (clip.sourceOutUs - clip.sourceInUs);
-    const active = state.playheadUs >= clip.timelineStartUs && state.playheadUs < audioEndUs;
-
-    if (!active) {
-      audio.pause();
-      return;
-    }
-
-    const target = (clip.sourceInUs + (state.playheadUs - clip.timelineStartUs)) / US;
-    if (!playing || Math.abs(audio.currentTime - target) > 0.15) {
-      audio.currentTime = target;
-    }
-    if (playing) {
-      if (audio.paused) void audio.play().catch(() => undefined);
-    } else {
-      audio.pause();
-    }
+    if (!audio) return;
+    syncAudio(audio);
   }, [audioBinding, playing, state.audioClip, state.playheadUs]);
 
   const togglePlayback = () => {
@@ -163,7 +178,9 @@ export function Preview({ state, controller, runtime }: Props) {
       const clip = state.audioClip;
       const endUs = clip.timelineStartUs + (clip.sourceOutUs - clip.sourceInUs);
       if (startUs >= clip.timelineStartUs && startUs < endUs) {
-        audioRef.current.currentTime = (clip.sourceInUs + (startUs - clip.timelineStartUs)) / US;
+        if (audioRef.current.readyState > 0) {
+          audioRef.current.currentTime = (clip.sourceInUs + (startUs - clip.timelineStartUs)) / US;
+        }
         audioRef.current.volume = clip.volume;
         void audioRef.current.play().catch(() => undefined);
       }
@@ -186,7 +203,12 @@ export function Preview({ state, controller, runtime }: Props) {
       </div>
 
       {state.audioClip && audioBinding && (
-        <audio ref={audioRef} src={audioBinding.objectUrl} preload="auto" />
+        <audio
+          ref={audioRef}
+          src={audioBinding.objectUrl}
+          preload="auto"
+          onLoadedMetadata={(event) => syncAudio(event.currentTarget)}
+        />
       )}
 
       <div className="transport">
