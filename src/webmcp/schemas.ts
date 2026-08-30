@@ -51,6 +51,20 @@ export const splitClipSchema = {
   additionalProperties: false,
 } as const;
 
+export const setClipSpeedSchema = {
+  type: "object",
+  properties: {
+    clipId: { type: "string" },
+    playbackRate: {
+      type: "number",
+      enum: [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2],
+      description: "Video playback speed multiplier.",
+    },
+  },
+  required: ["clipId", "playbackRate"],
+  additionalProperties: false,
+} as const;
+
 export const clipIdSchema = {
   type: "object",
   properties: { clipId: { type: "string" } },
