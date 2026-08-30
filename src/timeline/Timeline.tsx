@@ -13,6 +13,7 @@ import {
   timelineDurationUs,
   type EditorState,
 } from "../editor/model";
+import "./context-menu.css";
 
 const US = 1_000_000;
 const SCALE_OPTIONS = [24, 48, 80] as const;
@@ -168,7 +169,11 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
                       event.preventDefault();
                       event.stopPropagation();
                       onSelectClip(clip.id);
-                      setSpeedMenu({ clipId: clip.id, x: event.clientX, y: event.clientY });
+                      setSpeedMenu({
+                        clipId: clip.id,
+                        x: Math.min(event.clientX, Math.max(8, window.innerWidth - 200)),
+                        y: Math.min(event.clientY, Math.max(8, window.innerHeight - 120)),
+                      });
                     }}
                   >
                     <strong>{index + 1}. {asset?.name ?? clip.assetId}</strong>
