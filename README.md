@@ -1,138 +1,142 @@
 # DOGAGA（どーがが）
 
-パソコンのブラウザで動く、楽曲中心の軽量動画編集アプリ。
+DOGAGAは、**パソコンのブラウザで動く、軽量・ローカルファーストの動画編集Webアプリ**です。
 
-Premiere Proのような総合編集ソフトを再現するのではなく、MV、PV、ショート動画、歌詞動画、Spotify Canvasを、軽く・速く・迷わず作れる形に絞る。
+Premiere Proのような総合編集ソフトを再現するのではなく、MV、PV、ショート動画、歌詞動画、Spotify Canvasなどを、軽く・速く・迷わず作れる小型編集機を目指しています。
 
-Canva程度の入りやすさを保ちながら、楽曲波形、歌詞同期、ディゾルブ、文字演出、簡単な映像効果を扱えることを目指す。
+現在は、WebMCP Challenge 2026の締切を開発加速の機会として使いながら、Challenge専用demoではなく**compact production v0**を実装しています。
 
-## 計画文書
+## 公開版
+
+- Live app: https://dogaga.pages.dev
+- Repository: https://github.com/yo4e/DOGAGA
+- License: MIT
+
+公開版はCloudflare Pagesで配信しています。
+
+## 現在できること
+
+### 編集
+
+- local video / audioの読み込み
+- 1 video track（V1）+ 1 audio track（A1）
+- clip追加・並べ替え・trim・削除
+- audio start / volume / remove
+- cross dissolve追加・削除
+- 実時間に比例したtimeline表示
+- 再生ヘッド / timeline seek
+- timeline表示倍率
+
+### Preview
+
+- actual local videoのplay / stop / seek
+- clip境界を越える再生
+- trim / move / deleteの即時反映
+- audio同期
+- 2 video layerによる実cross dissolve
+- project canvas: 16:9 / 9:16 / 1:1 / 4:5
+- source fit: 全体表示（contain）/ 画面いっぱい（cover）
+
+### WebMCP
+
+DOGAGAは、現在開いている編集ページ自身がWebMCP toolsを公開します。
+
+人間UIとbrowser agentは**同じEditor state / 同じcommand executor**を共同操作します。別MCP serverやagent専用timelineは使いません。
+
+現在のtools:
+
+- `get_project_state`
+- `add_clip`
+- `move_clip`
+- `trim_clip`
+- `delete_clip`
+- `set_audio`
+- `clear_audio`
+- `set_canvas`
+- `add_transition`
+- `remove_transition`
+
+WebMCP対応環境では、人間が素材を読み込んだあと、agentがstateを読み、編集し、人間の修正後に再読取して続きを編集できます。
+
+## Privacy / local-first
+
+元動画・音声は、通常の編集ではサーバーへuploadしません。
+
+ブラウザsession中のruntimeでは `File` / object URLを保持しますが、WebMCPへ公開するEditor stateには含めません。
+
+agentへ渡さないもの:
+
+- `File`
+- FileSystemFileHandle
+- absolute path
+- object URL
+- local filesystem情報
+
+## 対応環境
+
+- Desktop Chromeを第一基準
+- WebMCP対応環境ではagent共同編集を利用可能
+- WebMCP非対応ブラウザでもmanual editor / actual previewは利用可能
+
+WebMCP自体は対応browser / in-app browser側の実装状況に依存します。
+
+## ローカル起動
+
+Node.js 22を推奨します。
+
+```bash
+npm install
+npm run dev
+```
+
+検証:
+
+```bash
+npm run typecheck
+npm test
+npm run build
+```
+
+production build outputは `dist/` です。
+
+## 現在の制約 / 次の優先
+
+compact production v0は機能を意図的に絞っています。現在の主な制約:
+
+- 編集sessionの永続保存 / relinkは未実装
+- 動画書き出し / downloadは未実装
+- multi-video-trackは未実装
+- waveform / lyrics / captions / effectsは未実装
+- frame-perfectな業務用NLE精度は目標外
+
+次の重要な製品課題は、**最低限の動画書き出し / downloadと、実利用で見つかるUX修正**です。
+
+## WebMCP Challenge 2026
+
+DOGAGAは2026-08-25以前から存在するプロジェクトです。Challenge期間中は、既存DOGAGAへbrowser-native WebMCP共同編集とcompact editor v0実装を追加しています。
+
+Challenge用に別の固定demoアプリを作るのではなく、公開中のDOGAGA本体をそのまま提出・実演に使います。
+
+Challenge提出動画は3分未満の実演動画として別途用意します。
+
+## 長期ビジョン
+
+将来的には、次の流れをブラウザだけで完結できる編集ツールを目指します。
+
+> 楽曲を置く、映像を並べる、歌詞を同期する、文字を演出する、少し加工する、用途に合った形で書き出す。
+
+万能なプロ向け編集ソフトではなく、音楽動画に必要十分な小型編集機を目指します。
+
+## 計画・設計文書
 
 - [プロダクト方針](docs/PRODUCT_VISION.md)
-- [競合調査](docs/COMPETITIVE_RESEARCH.md)
-- [権利・データ取扱方針](docs/RIGHTS_AND_DATA_POLICY.md)
-- [テスト素材方針](docs/TEST_MEDIA_POLICY.md)
 - [開発ロードマップ](docs/DEVELOPMENT_ROADMAP.md)
-- [ブラウザ・コーデック対応表と検証計画](docs/CODEC_SUPPORT_MATRIX.md)
-- [Desktop-firstの設計判断](docs/ADR-001-DESKTOP-FIRST.md)
-- [日本語を正本とする設計判断](docs/ADR-002-JAPANESE-FIRST.md)
-- [日本語UI用語集・文体ガイド](docs/JAPANESE_UI_GLOSSARY.md)
-- [歌詞タップ同期UX仕様](docs/LYRIC_SYNC_UX.md)
+- [WebMCP競合調査](docs/WEBMCP_COMPETITOR_RESEARCH.md)
+- [WebMCP compact v0実装方針](docs/WEBMCP_MVP_IMPLEMENTATION_PLAN.md)
+- [権利・データ取扱方針](docs/RIGHTS_AND_DATA_POLICY.md)
+- [ブラウザ・コーデック対応表](docs/CODEC_SUPPORT_MATRIX.md)
 - [プロジェクト形式 v0.1](docs/PROJECT_FORMAT.md)
 - [編集コマンドとUndo / Redoモデル](docs/EDIT_COMMAND_MODEL.md)
-- [Codex Batch 01 作業指示](docs/CODEX_BATCH_01.md)
 - [AI実装者向け作業規約](AGENTS.md)
 
-このREADMEは概要を示し、詳しい判断理由と実装順は上記文書へ残す。
-
-## 現在の構想
-
-- 名称：DOGAGA
-- 読み：どーがが
-- 形態：パソコンのブラウザで動くWebアプリ
-- 当面の公開先：よろずコム配下のサブドメイン
-- 想定利用者：まずは山田佳江本人。実用性が出た段階で一般公開も検討する
-- 第一対象：macOS + Chrome最新版
-- 第二対象：Windows + Chrome / Edge最新版
-- 入力：マウスまたはトラックパッド + 物理キーボード
-- 初期言語：日本語
-- 初期方針：デスクトップ中心、ローカルファースト、日本語を正本として開発
-
-スマートフォン向けの本格編集はMVPの対象外とする。将来のモバイル対応は、閲覧、確認、軽い字幕修正など、モバイルで意味のある用途から再検討する。
-
-英語ローカライズは、日本語版の主要ワークフローと用語が安定した後に行う。MVPでは英語UIを要求しないが、表示文字列は初期実装から日本語メッセージカタログへ集約し、後から英語を追加できる構造にする。
-
-## 目指すもの
-
-「楽曲を置く、映像を並べる、歌詞を同期する、文字を演出する、少し加工する、用途に合った形で書き出す」を、ブラウザだけで完結できる編集ツール。
-
-万能なプロ向け編集ソフトではなく、音楽動画に必要十分な小型編集機を目指す。
-
-## 主な制作物
-
-- 楽曲の歌詞動画／リリックビデオ
-- YouTube向けの1曲分のMV
-- 縦型ショート動画、ティザー、PV
-- Spotify Canvas向けの3〜8秒ループ動画
-- 静止画、動画、文字、音楽を組み合わせた簡易ビジュアライザー
-
-## MVP候補
-
-- 動画、画像、音声の読み込み
-- タイムラインへの配置
-- クリップの分割、トリミング、並べ替え
-- 複数クリップの連結
-- カット、クロスディゾルブ、フェード
-- テキスト／字幕の追加
-- 歌詞の貼り付け、行分割、タップ同期、一括タイミング補正
-- 音声波形、音量調整、フェード
-- 基本的な映像補正と少数のプリセット効果
-- 16:9 / 9:16 / 1:1
-- 1080p MP4書き出し
-- プロジェクトの保存と再開
-
-## 技術上の仮説
-
-現時点では、以下を候補とする。技術スパイクで検証してから確定する。
-
-- WebCodecs：動画・音声のデコード／エンコード
-- Canvas / WebGL：プレビュー、文字、エフェクト、合成
-- Web Audio API：音声再生、波形、フェード
-- Web Workers：重い処理の分離
-- ffmpeg.wasm：変換や書き出しの限定的な補助
-- OPFS / IndexedDB：サムネイル、波形、プロキシなどの作業用データ
-- バージョン付きJSON：編集内容の保存
-
-まずはmacOS + Chromeを第一基準、Windows + Chrome / Edgeを第二基準として検証する。
-
-## 保存方針
-
-動画本体をサーバーへ常時アップロードする方式ではなく、ローカルファーストを基本とする。
-
-- 元素材：ユーザー端末や外付けSSDなどに置く
-- プロジェクト：編集指示をJSON等で保存する
-- 作業用キャッシュ：ブラウザ内ストレージに保存する
-- 完成動画：ユーザーが指定した場所へ書き出す
-
-ブラウザ内ストレージは消える可能性があるため、唯一の保存先にはせず、プロジェクトファイルの書き出し・読み込みを可能にする。
-
-## 開発の進め方
-
-1. 入出力、再生、シーク、音ズレ、メモリを技術検証する
-2. 短いPVを完成できる最小タイムラインを作る
-3. 歌詞貼り付けとタップ同期を作る
-4. 文字演出、ビート、簡易効果を追加する
-5. Spotify Canvas、YouTube MV、Short向けプリセットを作る
-6. 保存、復旧、書き出しを安定させる
-7. 実際の制作で繰り返し使用する
-8. 権利、プライバシー、サポート体制を整えて公開範囲を広げる
-9. 日本語版の主要ワークフロー安定後に英語ローカライズを行う
-
-## 重要な設計思想
-
-- Premiere Proの縮小コピーにはしない
-- スマートフォン向け競合と正面衝突せず、PCブラウザ編集へ集中する
-- モバイル互換性のためにPCでの操作速度を犠牲にしない
-- 広い画面で、波形、タイムライン、歌詞一覧、プレビューを同時に扱う
-- キーボードを第一級の入力手段として設計する
-- 日本語を正本言語とし、自然なUI文言と日本語歌詞の扱いを優先する
-- 英語ローカライズは後段とするが、文字列を直書きせず追加可能な構造にする
-- 機能数より、操作の速さと分かりやすさを優先する
-- 楽曲、波形、歌詞、文字、ビートを一つの体験として設計する
-- 自動認識が失敗しても、人間が速く直せるようにする
-- ローカルファーストを基本にし、大容量動画を安易にクラウドへ送らない
-- AIは必須機能ではなく、制作時間を確実に短縮する場合だけ追加する
-- 判断理由と仕様を文書に残し、人間とAIの双方が作業を引き継げるようにする
-
-## 現在地
-
-- リポジトリ作成済み
-- 基本コンセプトを「PCブラウザで使う音楽中心の軽量編集機」へ具体化
-- 初期競合調査を実施
-- 権利・データ取扱方針を整理
-- MVPと段階的ロードマップを作成
-- Desktop-firstの設計判断を記録
-- 日本語を正本とする設計判断を記録
-- 歌詞タップ同期のUX仕様を作成
-- Codexへ分配可能なBatch 01作業指示を作成
-- 次はフェーズ0の設計・調査・技術スパイクを進める
+通常ロードマップの長期設計は保持しつつ、現在動いているcompact production v0をDOGAGA本体として段階的に育てます。

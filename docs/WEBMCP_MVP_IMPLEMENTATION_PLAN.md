@@ -1,25 +1,45 @@
-# WebMCP Challenge MVP 実装方針
+# WebMCP Challenge — compact production v0 実装方針
 
 更新日: 2026-08-30
 
 ## 1. 目的
 
-DOGAGAの通常ロードマップを4日で完成させるのではなく、WebMCP Challengeで次の一点を明確に実証する。
+WebMCP Challengeの締切を使って、DOGAGAの**小さいが実際に使える本番Webアプリ v0**を前進させる。
 
-> 人間とbrowser agentが、同じWeb動画編集ページ・同じProject state・同じ編集commandを共同操作できる。
+Challenge専用のthrowaway demoや固定シナリオ用prototypeを作るのではなく、公開中のDOGAGA本体をそのまま育てる。
 
-このSprintでは「高機能動画編集」より「WebMCP-native collaborative editing」を優先する。
+> 人間とbrowser agentが、同じWeb動画編集ページ・同じEditor state・同じ編集commandを共同操作できる。
+
+### compact production v0の基準
+
+通常のlocal mediaに対して、本物の機能として成立させる。
+
+- local video / audioの読み込み
+- clip追加・並べ替え・trim・削除
+- audio start / volume
+- project canvas（16:9 / 9:16 / 1:1 / 4:5）
+- contain / cover
+- cross dissolve 1種類
+- 実時間timeline / playhead / seek
+- timelineに沿ったactual video preview
+- WebMCPから同じlive stateの読取・編集
+- 人間操作とagent操作の相互反映
+- Cloudflare上の公開版でも同じ動作
+
+ハードコードしたデモデータ、fake preview、agent専用state、提出動画だけ成立する特別経路は作らない。
+
+Challengeにおける「demo」は提出動画内の実演を指し、DOGAGAアプリ本体をdemo扱いしない。
 
 競合調査は `docs/WEBMCP_COMPETITOR_RESEARCH.md` を参照する。
 
 ---
 
-## 2. 非目標
+## 2. 今回のscope外 / 後続
 
-今回の完成条件にしない。
+compact production v0は機能を意図的に絞る。今回のediting core / WebMCP PRのmerge gateにしないもの:
 
+- 動画書き出し / download
 - WebCodecsを使うこと自体
-- MP4 export
 - OPFS / IndexedDB persistence
 - 再リンク
 - codec matrix完成
@@ -28,42 +48,35 @@ DOGAGAの通常ロードマップを4日で完成させるのではなく、WebM
 - beat analysis
 - multi-video-track
 - advanced effects / color / keyframes
-- cloud / auth / upload
+- cloud upload / auth
 - built-in chat / LLM orchestration
 - external MCP server
 
-既存の長期設計は削除しないが、今回の実装ゲートにはしない。
+これらは「デモだから省く」のではない。現在の本番v0を小さく保ち、動く単位で段階的に追加するためである。
+
+特に**最低限の動画書き出し / downloadは、このediting core merge後の重要な製品課題**とする。
 
 ---
 
 ## 3. 差別化の正本
 
-DOGAGA WebMCP Sprintの説明は次を正本とする。
-
 ### Short pitch
 
-**A browser-native video editor whose live editing commands are exposed directly to browser agents through WebMCP. Humans and agents edit the same project state in the same page.**
+**A compact browser-native video editor whose live editing commands are exposed directly to browser agents through WebMCP. Humans and agents edit the same real project state in the same page.**
 
-### 技術上の違い
+既存のAI video editor / MCP video editorでは、built-in chat、localhost MCP server、remote MCP server + OAuth、coding agentによる外部JSON編集などが多い。
 
-既存のAI video editorやMCP video editorでは、よく次の方式を取る。
-
-- built-in chat agent
-- localhost MCP server
-- remote MCP server + OAuth
-- coding agentがproject JSON / codeを外から編集
-
-DOGAGAではWebMCPにより、現在開いているpageが自身の編集capabilityを登録する。
+DOGAGAでは現在開いているpage自身がWebMCP capabilityを登録する。
 
 - agentはDOMを推測して操作しない
 - 別serverを起動しない
 - editor側にLLMを組み込まない
-- UIとagentは同じProject / executorを通る
-- user-selected local mediaのraw handle/path/object URLをagentへ渡さない
+- UIとagentは同じEditor state / executorを通る
+- user-selected local mediaのraw handle / path / object URLをagentへ渡さない
 
 ---
 
-## 4. MVPアーキテクチャ
+## 4. アーキテクチャ
 
 ```text
 Local File input (human only)
@@ -73,18 +86,19 @@ MediaRuntime Map --------------------+
 assetId -> File / object URL         |
                                      |
                                      v
-Human UI ---> Command Executor ---> Editor State ---> Preview
+Human UI ---> Command Executor ---> Editor State ---> Real Preview
                  ^                   |
                  |                   v
                  +--- WebMCP Tools --+
 ```
 
-### 4.1 Editor State
+### Editor State
 
-今回必要なstateだけを保持する。
+現在の中心state:
 
 ```ts
 type EditorState = {
+  canvas: CanvasSettings;
   assets: AssetDescriptor[];
   videoClips: VideoClip[];
   audioClip: AudioClip | null;
@@ -95,215 +109,120 @@ type EditorState = {
 
 `AssetDescriptor`にはagentへ公開してよいmetadataだけを置く。
 
-例:
-
-- `id`
-- `kind`
-- display name
-- duration
-- width / height（取得できた場合）
-
-置かないもの:
+公開しないもの:
 
 - `File`
 - `FileSystemFileHandle`
 - absolute path
 - object URL
 - OPFS path
-- fingerprint / hash（今回不要）
+- runtime-only binding
 
-### 4.2 MediaRuntime
+### MediaRuntime
 
-ブラウザsession中だけ次を保持する。
+browser session中だけ `File` / object URLを保持する。Editor state、WebMCP response、将来のportable Project dataとは分離する。
 
-```ts
-Map<AssetId, {
-  file: File;
-  objectUrl: string;
-}>
-```
+### Command Executor
 
-これはportable Projectではなくruntime bindingであり、Undo / Redo、WebMCP response、保存JSONの対象にしない。
+UIとWebMCP mutation toolは必ず同じexecutorへ入る。
 
-ページ終了時にobject URLをrevokeする。
-
-今回、PR #19で設計中の完全な再リンク・stale request modelは実装しない。
-
-### 4.3 Command Executor
-
-UIとWebMCP mutation toolは必ず同じ関数へ入る。
-
-最低限:
+現在のcommand subset:
 
 - `addClip`
 - `moveClip`
 - `trimClip`
 - `deleteClip`
 - `setAudio`
+- `setCanvas`
 - `addTransition`
+- `removeTransition`
 
-可能なら:
-
-- `undo`
-- `redo`
-
-command executorが行うvalidation:
-
-- 存在するAsset / Clip IDか
-- timeline startが負でないか
-- source in/outがAsset duration内か
-- `sourceOut > sourceIn`か
-- clip overlapを今回許可するかの規則
-- transitionが隣接clip間にだけ設定されるか
-- audio volume範囲
-
-WebMCP adapter側に同じvalidationを重複実装しない。
-
-### 4.4 Undo / Redo
-
-今回のcommand subsetだけに限定し、簡単に安全に実装できる場合のみ入れる。
-
-推奨:
-
-- EditorState snapshotまたは小さなcommand history
-- MediaRuntimeはhistoryへ入れない
-- file load / object URL lifecycleはUndo対象外
-
-既存 `docs/EDIT_COMMAND_MODEL.md` は設計参考とするが、歌詞・永続Asset・maintenance commandまで今回実装しない。
+意味validationは共通executorで行い、WebMCP adapterに第二validation実装を作らない。
 
 ---
 
-## 5. UI
+## 5. UI / Timeline
 
-professional NLEを作らない。
+professional NLEの機能量は目指さないが、人間が自分の素材で普通に編集できるUIを基準にする。
 
-一画面でデモが読めることを優先する。
+現在の必須領域:
 
-### 必須領域
-
-1. Media panel
+1. Media
    - video複数選択
    - audio 1本選択
-   - Asset ID / durationの簡易表示
-
+   - Asset名 / duration / metadata
 2. Preview
-   - play / pause
-   - seek
-   - 現在clip表示
+   - actual local media
+   - play / stop / seek
+   - canvas preset / fit mode
    - audio同期
-
+   - transition反映
 3. Timeline
-   - video clipを横並びbarまたは簡易trackとして表示
-   - clip name / duration
-   - 選択
-   - UIからmove / trim / delete可能
-   - cross dissolveの存在が分かる表示
-
+   - V1 video track / A1 audio track
+   - 実時間に比例した表示
+   - time ruler / playhead
+   - horizontal scroll / zoom
+   - clip選択
+   - move / trim / delete
+   - cross dissolve表示
 4. Agent activity
-   - `Agent: trim_clip`
-   - 成功 / error
-   - 直近数件だけでよい
-
+   - tool名
+   - success / error
 5. WebMCP status
    - supported / unsupported
    - tools registered
 
-### UI操作
-
-drag & dropを必須にしない。
-
-deadline優先で、button / select / number inputでもよい。
-
-「人間がmanual editできる」ことが確認できればよく、完成版editorの操作感は評価対象外とする。
+ドラッグ操作は現段階の必須条件ではない。実利用で必要性を確認して後続追加する。
 
 ---
 
 ## 6. Preview
 
-### 基本方針
+native `HTMLVideoElement` / `HTMLAudioElement`を使う。
 
-native `HTMLVideoElement` / `HTMLAudioElement`を第一候補とする。
-
-WebCodecsは今回の完成条件にしない。
-
-### 再生
-
-Global timeline positionから次を算出する。
-
-```text
-active clip
-source time = clip.sourceIn + (playhead - clip.timelineStart)
-```
-
-clip境界を越えたらactive video sourceを切り替える。
+Global timeline positionからactive clipとsource timeを算出し、clip境界でsourceを切り替える。seekでも同じmappingを使う。
 
 ### Cross dissolve
 
-1種類だけ。
-
-必要なら2つのvideo elementを重ね、transition区間だけopacityを反転させる簡易方式でよい。
-
-高精度compositorは今回作らない。
+隣接clipをtimeline上で実overlapさせ、2つのvideo elementのopacityを反転させる。単なる表示ラベルではなく、actual previewで実際にblendすること。
 
 ### Audio
 
-1本だけ。
+A1一本を現在のcompact scopeとする。
 
 - timeline start
+- source in/out
 - volume
 
-を反映する。
+をactual `HTMLAudioElement`へ反映する。
 
-映像と音声のframe-perfect同期は今回の評価軸にしないが、デモ上明らかな破綻は避ける。
+frame-perfectな業務用NLE精度は現段階の目標外だが、短尺編集として明らかな破綻は許容しない。
 
 ---
 
 ## 7. WebMCP
 
-### API
+React lifecycleは `use-webmcp-tool` を使い、`document.modelContext.registerTool()` のregistration lifecycleを管理する。
 
-現行標準のimperative API:
+### 現在の10 tools
 
-```ts
-document.modelContext.registerTool(...)
-```
+read:
 
-を使う。
+- `get_project_state`
 
-### React lifecycle
+mutations:
 
-第一候補として `use-webmcp-tool` を採用する。
+- `add_clip`
+- `move_clip`
+- `trim_clip`
+- `delete_clip`
+- `set_audio`
+- `clear_audio`
+- `set_canvas`
+- `add_transition`
+- `remove_transition`
 
-理由:
-
-- GoogleChromeLabs maintain
-- Apache-2.0
-- React >= 18
-- runtime dependencyなし
-- StrictMode / HMR lifecycleを処理
-- AbortSignal unregistration
-- late injection / unsupported browser handling
-- error result normalization
-
-この依存は今回の目的に直接対応する小規模依存であり、「大きなwrapperを導入しない」という原則には抵触しないと判断する。
-
-直接APIを数十行で安全に扱える場合は自作でもよいが、独自lifecycleコードを増やすことを目的にしない。
-
-### Tool set
-
-#### read
-
-`get_project_state`
-
-返すもの:
-
-- safe Asset descriptors
-- video clip IDs / asset IDs
-- timeline start
-- source in/out
-- audio start / volume
-- transitions
-- optional undo/redo state
+`get_project_state`はsafe Asset descriptors、canvas、clips、audio、transitions、playhead等を返す。
 
 返さないもの:
 
@@ -313,149 +232,88 @@ document.modelContext.registerTool(...)
 - file handle
 - private runtime binding
 
-#### mutations
-
-- `add_clip`
-- `move_clip`
-- `trim_clip`
-- `delete_clip`
-- `set_audio`
-- `add_transition`
-
-optional:
-
-- `undo`
-- `redo`
-
-mutation toolはWebMCP adapterからcommand executorを呼ぶだけにする。
-
-### Tool naming
-
-tool数を増やして競わない。
-
-Agentが一度stateを読み、複数mutationを順に実行し、人間の修正後に再度stateを読む一連のflowを重視する。
+Agentがstateを読み、複数mutationを行い、人間の修正後に再度stateを読んで続きから編集できるflowを重視する。
 
 ---
 
-## 8. Testing
+## 8. 検証
 
-### 自動検証として必須
-
-変更範囲に応じて:
+### 自動検証
 
 - TypeScript typecheck
-- lint
 - build
 - command executor unit tests
 - invalid command tests
-- WebMCP adapterがexecutorを呼ぶことのunit test
-- safe state serialization test（object URL / File等が漏れない）
+- WebMCP handler tests
+- safe state serialization test
 
-### 必須ではない監査
+### 実ブラウザ
 
-次を毎PRの完了条件にしない。
+最低限:
 
-- 全docsの全文横断レビュー
-- Markdown code fence数
-- table数
-- 全fixture ID照合
-- 通常ロードマップの全acceptance再検証
-- macOS / Windows両方のcodec matrix
-- unrelated schema validation
-
-### Browser実機
-
-最終的に必要:
-
-- local video 3本 + audio 1本
+- 通常のlocal video / audio load
 - manual edit
+- play / stop / seek
+- clip境界
+- audio同期
+- actual cross dissolve
 - WebMCP tool discovery
 - agent edit
-- preview
 - human correction
 - agent reread + edit
+- WebMCP非対応browserでmanual editorが壊れないこと
 
-ここは実ブラウザ操作が必要になるため、Codexまたは人間実機確認へ渡す。
+固定fixtureだけでなく通常のlocal mediaで成立することを確認する。
 
----
+### 2026-08-30時点
 
-## 9. 作業分担
-
-### ChatGPTで進める
-
-- competitor research
-- architecture / scope固定
-- Issue / docs / AGENTS整理
-- Project / commandの小さなpure TypeScript部分
-- validation / unit tests
-- WebMCP tool schema設計
-- code review
-- README / Devpost draft
-
-### Codexへ渡すタイミング
-
-次のどれかに入ったらCodexを使う価値が高い。
-
-- React app scaffoldから複数UI fileをまとめて実装
-- actual media playback synchronization
-- cross dissolve preview
-- WebMCP対応Chrome / in-app browserの実動作確認
-- browser bug修正を反復
-- deploy + end-to-end demo確認
-
-Codexへ渡す前に、仕様をこの文書と対象Issueで機械的に実装できる状態へ固定する。
+PR #25では、local / productionの両方でbrowser validationとWebMCP shared-state scenarioを実施済み。Cloudflare Pages公開版でもactual previewとagent共同編集を確認済み。
 
 ---
 
-## 10. 実行順
+## 9. 公開
 
-### Step 1 — lightweight app + state
+現在の公開先:
 
-- React + TS + Vite
-- runtime asset load
-- EditorState
-- command executor
-- simple UI
+- Cloudflare Pages
+- https://dogaga.pages.dev
 
-### Step 2 — preview
+React + Viteのproduction build (`npm run build` → `dist/`) をそのまま配信する。
 
-- video playback / seek
-- audio
-- trim / move反映
-- simple cross dissolve
+Challenge提出のためだけの別アプリは作らず、この公開版をDOGAGA本体として継続する。
 
-### Step 3 — WebMCP
-
-- tools register
-- same executor
-- agent activity
-- unsupported fallback
-
-### Step 4 — browser validation / deploy / submission
-
-- actual WebMCP agent scenario
-- GitHub Pages等のpublic static deploymentを第一候補
-- README
-- demo video
-- Devpost
-
-PR数は固定しない。
-
-一つのbranch / PRで自然にレビューできるなら #20 と #21を連続して実装してよい。PRを細分化すること自体を目的にしない。
+PR #25 merge後はCloudflare PagesのProduction branchを `main` へ切り替える。
 
 ---
 
-## 11. 長期DOGAGAとの境界
+## 10. Challenge提出との関係
 
-今回のSprintは長期設計を否定しない。
+Challenge提出では、DOGAGA本体の実動作を使って次を用意する。
 
-Sprint後に再検討するもの:
+- public live app
+- README / setup
+- 3分未満のpublic YouTube demo video（実演動画）
+- 英語Devpost説明
+- WebMCPが適する理由
+- human / agent shared-state editingの説明
+- privacy / local-first説明
 
-- Issue #2 WebCodecs / export技術スパイク
+アプリ本体と提出用実演動画を混同しない。
+
+---
+
+## 11. 長期DOGAGAとの関係
+
+compact production v0は通常DOGAGAの本体であり、throwawayではない。
+
+後続候補:
+
+- 最低限の動画書き出し / download
+- WebCodecs / export技術
 - Issue #4 codec matrix実機測定
 - Issue #18 / PR #19 Asset registration / relink / stale request設計
 - OPFS / IndexedDB
 - portable `.dogaga`
-- lyrics / text / waveform
+- lyrics / text / waveform / effects
 
-ハッカソン実装から長期実装へ戻す際、Sprintの簡易runtimeをそのまま恒久設計とみなさない。
+session-only runtimeなど現在簡略化している部分は、そのまま恒久仕様とみなさず、実利用を通じて再評価する。
