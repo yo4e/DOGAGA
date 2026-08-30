@@ -1,0 +1,85 @@
+.timeline-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.timeline-workspace {
+  grid-template-columns: 152px minmax(0, 1fr);
+}
+
+.timeline-sidebar {
+  min-width: 0;
+}
+
+.track-label {
+  padding: 6px 8px;
+  align-content: center;
+  gap: 5px;
+}
+
+.track-label-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.track-label-title strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-mini-controls {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.track-mini-controls button {
+  min-width: 24px;
+  height: 24px;
+  padding: 2px 5px;
+  border-radius: 6px;
+  border-color: #485064;
+  background: #2a303d;
+  color: #dce2ee;
+  font-size: 10px;
+}
+
+.track-mini-controls button:hover:not(:disabled) {
+  background: #353d4d;
+  border-color: #64708a;
+}
+
+.track-mini-controls input[type="range"] {
+  width: 48px;
+  min-width: 32px;
+  accent-color: #8fb3ff;
+}
+
+.timeline-canvas {
+  min-height: 190px;
+}
+
+.timeline-lane.track-disabled {
+  opacity: 0.38;
+}
+
+@media (max-width: 760px) {
+  .timeline-toolbar-actions {
+    align-items: stretch;
+  }
+
+  .timeline-workspace {
+    grid-template-columns: 116px minmax(0, 1fr);
+  }
+
+  .track-mini-controls input[type="range"] {
+    width: 34px;
+  }
+}
