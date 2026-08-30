@@ -11,6 +11,9 @@ export const CANVAS_PRESETS = {
   portraitFourFive: { label: "縦 4:5", width: 1080, height: 1350 },
 } as const;
 
+export const PLAYBACK_RATES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2] as const;
+export type PlaybackRate = (typeof PLAYBACK_RATES)[number];
+
 export type CanvasPresetId = keyof typeof CANVAS_PRESETS;
 export type CanvasFitMode = "contain" | "cover";
 
@@ -36,6 +39,7 @@ export type VideoClip = {
   timelineStartUs: number;
   sourceInUs: number;
   sourceOutUs: number;
+  playbackRate: number;
 };
 
 export type AudioClip = {
@@ -64,13 +68,16 @@ export type EditorState = {
   playheadUs: number;
 };
 
-export type VideoClipDraft = Omit<VideoClip, "timelineStartUs">;
+export type VideoClipDraft = Omit<VideoClip, "timelineStartUs" | "playbackRate"> & {
+  playbackRate?: number;
+};
 
 export type EditorCommand =
   | { type: "addClip"; clip: VideoClipDraft; atIndex?: number }
   | { type: "moveClip"; clipId: ClipId; toIndex: number }
   | { type: "trimClip"; clipId: ClipId; sourceInUs: number; sourceOutUs: number }
   | { type: "splitClip"; clipId: ClipId; atTimelineUs: number; newClipId: ClipId }
+  | { type: "setClipSpeed"; clipId: ClipId; playbackRate: number }
   | { type: "deleteClip"; clipId: ClipId }
   | { type: "setAudio"; audio: AudioClip | null }
   | { type: "setCanvas"; preset: CanvasPresetId; fitMode: CanvasFitMode }
@@ -96,8 +103,22 @@ export function createEmptyEditorState(): EditorState {
   };
 }
 
-export function clipDurationUs(clip: Pick<VideoClip, "sourceInUs" | "sourceOutUs">): number {
-  return clip.sourceOutUs - clip.sourceInUs;
+export function clipDurationUs(
+  clip: Pick<VideoClip, "sourceInUs" | "sourceOutUs" | "playbackRate">,
+): number {
+  const sourceDurationUs = clip.sourceOutUs - clip.sourceInUs;
+  return Math.max(1, Math.round(sourceDurationUs / clip.playbackRate));
+}
+
+export function sourceTimeUsAt(clip: VideoClip, timelineUs: number): number {
+  const timelineOffsetUs = Math.max(
+    0,
+    Math.min(clipDurationUs(clip), timelineUs - clip.timelineStartUs),
+  );
+  return Math.min(
+    clip.sourceOutUs,
+    Math.max(clip.sourceInUs, clip.sourceInUs + Math.round(timelineOffsetUs * clip.playbackRate)),
+  );
 }
 
 export function timelineDurationUs(state: EditorState): number {
