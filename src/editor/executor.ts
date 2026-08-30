@@ -157,6 +157,47 @@ export function executeCommand(state: EditorState, command: EditorCommand): Edit
       return finalizeVideoChange(state, next);
     }
 
+    case "splitClip": {
+      const index = state.videoClips.findIndex((clip) => clip.id === command.clipId);
+      if (index < 0) fail("CLIP_NOT_FOUND", `Clip ${command.clipId} が見つかりません`);
+      if (state.videoClips.some((clip) => clip.id === command.newClipId)) {
+        fail("CLIP_ID_CONFLICT", `Clip ${command.newClipId} はすでに存在します`);
+      }
+      if (!Number.isSafeInteger(command.atTimelineUs)) {
+        fail("INVALID_TIME", "split位置は安全な整数マイクロ秒で指定してください");
+      }
+
+      const clip = state.videoClips[index];
+      const clipStartUs = clip.timelineStartUs;
+      const clipEndUs = clipStartUs + clipDurationUs(clip);
+      if (command.atTimelineUs <= clipStartUs || command.atTimelineUs >= clipEndUs) {
+        fail("INVALID_SPLIT_POSITION", "split位置はclipの開始・終了より内側に指定してください");
+      }
+
+      const sourceSplitUs = clip.sourceInUs + (command.atTimelineUs - clipStartUs);
+      if (sourceSplitUs <= clip.sourceInUs || sourceSplitUs >= clip.sourceOutUs) {
+        fail("INVALID_SPLIT_POSITION", "split位置を素材時刻へ変換できませんでした");
+      }
+
+      const left: VideoClip = { ...clip, sourceOutUs: sourceSplitUs };
+      const right: VideoClip = {
+        id: command.newClipId,
+        assetId: clip.assetId,
+        timelineStartUs: 0,
+        sourceInUs: sourceSplitUs,
+        sourceOutUs: clip.sourceOutUs,
+      };
+      const next = [...state.videoClips];
+      next.splice(index, 1, left, right);
+
+      const remappedTransitions = state.transitions.map((transition) =>
+        transition.fromClipId === clip.id
+          ? { ...transition, fromClipId: command.newClipId }
+          : transition,
+      );
+      return finalizeVideoChange(state, next, remappedTransitions);
+    }
+
     case "deleteClip": {
       if (!state.videoClips.some((clip) => clip.id === command.clipId)) {
         fail("CLIP_NOT_FOUND", `Clip ${command.clipId} が見つかりません`);

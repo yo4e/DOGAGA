@@ -90,6 +90,15 @@ export function trimClip(controller: EditorController, args: unknown) {
   return { ok: true, clipId, sourceInUs, sourceOutUs };
 }
 
+export function splitClip(controller: EditorController, args: unknown) {
+  const input = record(args);
+  const clipId = requiredString(input, "clipId");
+  const timelineUs = optionalInteger(input, "timelineUs") ?? controller.getState().playheadUs;
+  const newClipId = makeId("clip");
+  controller.execute({ type: "splitClip", clipId, atTimelineUs: timelineUs, newClipId });
+  return { ok: true, clipId, newClipId, timelineUs };
+}
+
 export function deleteClip(controller: EditorController, args: unknown) {
   const input = record(args);
   const clipId = requiredString(input, "clipId");

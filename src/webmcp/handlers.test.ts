@@ -7,6 +7,7 @@ import {
   moveClip,
   setAudio,
   setCanvas,
+  splitClip,
   trimClip,
 } from "./handlers";
 
@@ -39,6 +40,23 @@ describe("WebMCP handlers", () => {
     trimClip(controller, { clipId, sourceInUs: S, sourceOutUs: 3 * S });
     expect(controller.getState().videoClips[0]).toMatchObject({ sourceInUs: S, sourceOutUs: 3 * S });
     expect(() => trimClip(controller, { clipId, sourceInUs: 4 * S, sourceOutUs: 3 * S })).toThrow();
+  });
+
+  it("splits at explicit timeline time or the current playhead", () => {
+    const controller = controllerWithAssets();
+    const { clipId } = addClip(controller, { assetId: "v1", sourceOutUs: 6 * S });
+    const explicit = splitClip(controller, { clipId, timelineUs: 2 * S });
+    expect(controller.getState().videoClips).toHaveLength(2);
+    expect(controller.getState().videoClips[1]).toMatchObject({
+      id: explicit.newClipId,
+      sourceInUs: 2 * S,
+      sourceOutUs: 6 * S,
+    });
+
+    controller.setPlayheadUs(4 * S);
+    const fromPlayhead = splitClip(controller, { clipId: explicit.newClipId });
+    expect(fromPlayhead.timelineUs).toBe(4 * S);
+    expect(controller.getState().videoClips).toHaveLength(3);
   });
 
   it("sets audio and validates volume in the executor", () => {

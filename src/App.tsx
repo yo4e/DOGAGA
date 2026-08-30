@@ -28,6 +28,11 @@ function seconds(us: number): string {
   return (us / US).toFixed(2);
 }
 
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.isContentEditable || ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName);
+}
+
 function App() {
   const controller = useMemo(() => new EditorController(), []);
   const runtime = useMemo(() => new MediaRuntime(), []);
@@ -134,6 +139,62 @@ function App() {
       )
     : undefined;
 
+  const splitSelectedClip = (): boolean => {
+    if (!selectedClip) return false;
+    const newClipId = newId("clip");
+    const didSplit = run(() => controller.execute({
+      type: "splitClip",
+      clipId: selectedClip.id,
+      atTimelineUs: state.playheadUs,
+      newClipId,
+    }));
+    if (didSplit) setSelectedClipId(newClipId);
+    return didSplit;
+  };
+
+  const toggleSelectedDissolve = (): boolean => {
+    if (!selectedClip || !nextClip) return false;
+    if (selectedTransition) {
+      return run(() => controller.execute({
+        type: "removeTransition",
+        transitionId: selectedTransition.id,
+      }));
+    }
+    return run(() => controller.execute({
+      type: "addTransition",
+      transition: {
+        id: newId("transition"),
+        kind: "cross-dissolve",
+        fromClipId: selectedClip.id,
+        toClipId: nextClip.id,
+        durationUs: 500_000,
+      },
+    }));
+  };
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || isTypingTarget(event.target)) return;
+      const key = event.key.toLowerCase();
+
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && key === "k") {
+        if (!selectedClip) return;
+        event.preventDefault();
+        splitSelectedClip();
+        return;
+      }
+
+      if (!event.metaKey && !event.ctrlKey && !event.altKey && event.shiftKey && key === "d") {
+        if (!selectedClip || !nextClip) return;
+        event.preventDefault();
+        toggleSelectedDissolve();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [selectedClip, nextClip, selectedTransition, state.playheadUs]);
+
   const setCanvas = (preset: CanvasPresetId, fitMode: CanvasFitMode) => {
     run(() => controller.execute({ type: "setCanvas", preset, fitMode }));
   };
@@ -212,6 +273,7 @@ function App() {
 
       <section className="panel timeline-panel">
         <h2>3. タイムライン</h2>
+        <p className="muted">⌘K / Ctrl+K: 再生ヘッドでカット（分割） ・ Shift+D: 次のclipとのディゾルブ切替</p>
         <Timeline
           state={state}
           controller={controller}
@@ -232,6 +294,7 @@ function App() {
             <div className="button-row inspector-actions">
               <button type="button" disabled={selectedIndex === 0} onClick={() => run(() => controller.execute({ type: "moveClip", clipId: selectedClip.id, toIndex: selectedIndex - 1 }))}>前へ移動</button>
               <button type="button" disabled={selectedIndex === state.videoClips.length - 1} onClick={() => run(() => controller.execute({ type: "moveClip", clipId: selectedClip.id, toIndex: selectedIndex + 1 }))}>後ろへ移動</button>
+              <button type="button" onClick={splitSelectedClip}>再生ヘッドで分割</button>
               <button type="button" onClick={() => trim(selectedClip, "in")}>開始を0.1秒カット</button>
               <button type="button" onClick={() => trim(selectedClip, "out")}>終了を0.1秒カット</button>
               <button className="danger-button" type="button" onClick={() => run(() => controller.execute({ type: "deleteClip", clipId: selectedClip.id }))}>削除</button>
@@ -241,26 +304,17 @@ function App() {
                 <button
                   type="button"
                   className="transition-button active"
-                  onClick={() => run(() => controller.execute({ type: "removeTransition", transitionId: selectedTransition.id }))}
+                  onClick={toggleSelectedDissolve}
                 >
-                  次のクリップとの0.5秒ディゾルブを外す
+                  次のクリップとの0.5秒ディゾルブを外す（Shift+D）
                 </button>
               ) : (
                 <button
                   type="button"
                   className="transition-button"
-                  onClick={() => run(() => controller.execute({
-                    type: "addTransition",
-                    transition: {
-                      id: newId("transition"),
-                      kind: "cross-dissolve",
-                      fromClipId: selectedClip.id,
-                      toClipId: nextClip.id,
-                      durationUs: 500_000,
-                    },
-                  }))}
+                  onClick={toggleSelectedDissolve}
                 >
-                  次のクリップとの境界に0.5秒ディゾルブ
+                  次のクリップとの境界に0.5秒ディゾルブ（Shift+D）
                 </button>
               )
             )}

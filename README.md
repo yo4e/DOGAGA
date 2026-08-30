@@ -21,6 +21,9 @@ Premiere Proのような総合編集ソフトを再現するのではなく、MV
 - local video / audioの読み込み
 - 1 video track（V1）+ 1 audio track（A1）
 - clip追加・並べ替え・trim・削除
+- 再生ヘッド位置でのclip分割
+- `⌘K` / `Ctrl+K` で選択clipを再生ヘッド位置で分割
+- `Shift+D` で選択clipと次clipの0.5秒cross dissolveを切替
 - audio start / volume / remove
 - cross dissolve追加・削除
 - 実時間に比例したtimeline表示
@@ -29,13 +32,22 @@ Premiere Proのような総合編集ソフトを再現するのではなく、MV
 
 ### Preview
 
-- actual local videoのplay / stop / seek
+- actual local videoのplay / pause / seek
 - clip境界を越える再生
-- trim / move / deleteの即時反映
+- trim / split / move / deleteの即時反映
 - audio同期
 - 2 video layerによる実cross dissolve
 - project canvas: 16:9 / 9:16 / 1:1 / 4:5
 - source fit: 全体表示（contain）/ 画面いっぱい（cover）
+
+### 書き出し
+
+- 現在のV1 / A1をブラウザ内で動画へ書き出し
+- trim / clip順 / canvas / contain-cover / cross dissolve / audioを反映
+- browser-native `canvas.captureStream()` + Web Audio + MediaRecorder
+- 対応環境ではMP4を優先し、必要に応じてWebMへfallback
+- server uploadなし
+- progress / cancel / download
 
 ### WebMCP
 
@@ -49,6 +61,7 @@ DOGAGAは、現在開いている編集ページ自身がWebMCP toolsを公開�
 - `add_clip`
 - `move_clip`
 - `trim_clip`
+- `split_clip`
 - `delete_clip`
 - `set_audio`
 - `clear_audio`
@@ -60,7 +73,7 @@ WebMCP対応環境では、人間が素材を読み込んだあと、agentがsta
 
 ## Privacy / local-first
 
-元動画・音声は、通常の編集ではサーバーへuploadしません。
+元動画・音声は、通常の編集・書き出しではサーバーへuploadしません。
 
 ブラウザsession中のruntimeでは `File` / object URLを保持しますが、WebMCPへ公開するEditor stateには含めません。
 
@@ -76,7 +89,7 @@ agentへ渡さないもの:
 
 - Desktop Chromeを第一基準
 - WebMCP対応環境ではagent共同編集を利用可能
-- WebMCP非対応ブラウザでもmanual editor / actual previewは利用可能
+- WebMCP非対応ブラウザでもmanual editor / actual preview / exportを利用可能
 
 WebMCP自体は対応browser / in-app browser側の実装状況に依存します。
 
@@ -110,12 +123,12 @@ GitHub Actionsもclean checkout + Node.js 22 + `npm ci` で同じ検証を行い
 compact production v0は機能を意図的に絞っています。現在の主な制約:
 
 - 編集sessionの永続保存 / relinkは未実装
-- 動画書き出し / downloadは未実装
-- multi-video-trackは未実装
-- waveform / lyrics / captions / effectsは未実装
+- multi-video-track / multi-audio-trackは未実装
+- clip playback speed / fade in-outは未実装
+- waveform / lyrics / captions / advanced effectsは未実装
 - frame-perfectな業務用NLE精度は目標外
 
-次の重要な製品課題は、**最低限の動画書き出し / downloadと、実利用で見つかるUX修正**です。
+次の重要な製品課題は、**基本編集操作（split / speed / fade）の拡充、multi-track化、実利用で見つかるUX修正**です。
 
 ## WebMCP Challenge 2026
 

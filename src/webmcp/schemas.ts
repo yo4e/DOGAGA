@@ -37,6 +37,20 @@ export const trimClipSchema = {
   additionalProperties: false,
 } as const;
 
+export const splitClipSchema = {
+  type: "object",
+  properties: {
+    clipId: { type: "string" },
+    timelineUs: {
+      type: "integer",
+      minimum: 0,
+      description: "Global timeline position in microseconds. Defaults to the current playhead when omitted.",
+    },
+  },
+  required: ["clipId"],
+  additionalProperties: false,
+} as const;
+
 export const clipIdSchema = {
   type: "object",
   properties: { clipId: { type: "string" } },
