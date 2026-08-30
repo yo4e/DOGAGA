@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { EditorState } from "../editor/model";
+import { allVideoClips, type EditorState } from "../editor/model";
 import type { MediaRuntime } from "../media/runtime";
 import { exportProject, type ExportResult } from "./exporter";
 import "./export.css";
@@ -42,6 +42,7 @@ export function ExportPanel({ state, runtime }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [download, setDownload] = useState<Download | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const hasVideo = allVideoClips(state).length > 0;
 
   useEffect(() => () => {
     abortRef.current?.abort();
@@ -90,12 +91,12 @@ export function ExportPanel({ state, runtime }: Props) {
     <section className="panel export-panel">
       <h2>4. 書き出し</h2>
       <p className="muted">
-        現在のV1 / A1、動画サイズ、表示方法、ディゾルブを実動画へ反映してローカルで書き出します。
+        video trackの重なり・opacity・表示状態、audio trackのmix / mute、clip編集、動画サイズ、ディゾルブを実動画へ反映してローカルで書き出します。
         利用可能ならMP4、対応していない環境ではWebMを使います。
       </p>
 
       <div className="export-actions">
-        <button type="button" disabled={exporting || !state.videoClips.length} onClick={() => void start()}>
+        <button type="button" disabled={exporting || !hasVideo} onClick={() => void start()}>
           {exporting ? "書き出し中…" : "動画を書き出す"}
         </button>
         {exporting && (
