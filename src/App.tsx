@@ -3,7 +3,10 @@ import { EditorController } from "./editor/controller";
 import { EditorCommandError } from "./editor/executor";
 import {
   CANVAS_PRESETS,
+  allVideoClips,
   clipDurationUs,
+  findVideoClipLocation,
+  getAudioTracks,
   type AssetKind,
   type CanvasFitMode,
   type CanvasPresetId,
@@ -42,18 +45,20 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [activities, setActivities] = useState<AgentActivity[]>([]);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
+  const videoClips = useMemo(() => allVideoClips(state), [state.tracks]);
+  const audioTracks = useMemo(() => getAudioTracks(state), [state.tracks]);
 
   useEffect(() => () => runtime.dispose(), [runtime]);
 
   useEffect(() => {
-    if (!state.videoClips.length) {
+    if (!videoClips.length) {
       if (selectedClipId !== null) setSelectedClipId(null);
       return;
     }
-    if (!state.videoClips.some((clip) => clip.id === selectedClipId)) {
-      setSelectedClipId(state.videoClips[0].id);
+    if (!videoClips.some((clip) => clip.id === selectedClipId)) {
+      setSelectedClipId(videoClips[0].id);
     }
-  }, [selectedClipId, state.videoClips]);
+  }, [selectedClipId, videoClips]);
 
   const run = (action: () => void): boolean => {
     try {
@@ -100,19 +105,22 @@ function App() {
     )) setSelectedClipId(clipId);
   };
 
-  const setAudio = (assetId: string) => {
+  const setAudioTrack = (assetId: string, trackId?: string) => {
     const asset = state.assets.find((item) => item.id === assetId);
     if (!asset || asset.kind !== "audio") return;
+    const currentTrack = trackId ? audioTracks.find((track) => track.id === trackId) : audioTracks[0];
+    const existing = currentTrack?.clips[0];
     run(() =>
       controller.execute({
         type: "setAudio",
+        ...(trackId ? { trackId } : {}),
         audio: {
-          id: newId("audio-clip"),
+          id: existing?.id ?? newId("audio-clip"),
           assetId,
-          timelineStartUs: 0,
+          timelineStartUs: existing?.timelineStartUs ?? 0,
           sourceInUs: 0,
           sourceOutUs: asset.durationUs,
-          volume: 0.7,
+          volume: existing?.volume ?? 0.7,
         },
       }),
     );
@@ -129,11 +137,11 @@ function App() {
     setActivities((current) => [activity, ...current].slice(0, 8));
   };
 
-  const selectedClip = state.videoClips.find((clip) => clip.id === selectedClipId) ?? null;
-  const selectedIndex = selectedClip
-    ? state.videoClips.findIndex((clip) => clip.id === selectedClip.id)
-    : -1;
-  const nextClip = selectedIndex >= 0 ? state.videoClips[selectedIndex + 1] : undefined;
+  const selectedLocation = selectedClipId ? findVideoClipLocation(state, selectedClipId) ?? null : null;
+  const selectedClip = selectedLocation?.clip ?? null;
+  const selectedIndex = selectedLocation?.clipIndex ?? -1;
+  const selectedTrack = selectedLocation?.track ?? null;
+  const nextClip = selectedTrack && selectedIndex >= 0 ? selectedTrack.clips[selectedIndex + 1] : undefined;
   const selectedTransition = selectedClip && nextClip
     ? state.transitions.find(
         (transition) => transition.fromClipId === selectedClip.id && transition.toClipId === nextClip.id,
@@ -229,9 +237,9 @@ function App() {
                 <small>{asset.kind} · {seconds(asset.durationUs)}s</small>
               </div>
               {asset.kind === "video" ? (
-                <button type="button" onClick={() => addVideo(asset.id)}>タイムライン末尾へ</button>
+                <button type="button" onClick={() => addVideo(asset.id)}>V1末尾へ</button>
               ) : (
-                <button type="button" onClick={() => setAudio(asset.id)}>音源に設定</button>
+                <button type="button" onClick={() => setAudioTrack(asset.id)}>A1に設定</button>
               )}
             </div>
           ))}
@@ -274,7 +282,7 @@ function App() {
 
       <section className="panel timeline-panel">
         <h2>3. タイムライン</h2>
-        <p className="muted">⌘K / Ctrl+K: 再生ヘッドでカット（分割） ・ Shift+D: 次のclipとのディゾルブ切替 ・ clip右クリック: 再生速度</p>
+        <p className="muted">⌘K / Ctrl+K: 分割 ・ Shift+D: 同じtrackの次clipとのディゾルブ ・ clip右クリック: track / 速度 / fade</p>
         <Timeline
           state={state}
           controller={controller}
@@ -282,10 +290,10 @@ function App() {
           onSelectClip={setSelectedClipId}
         />
 
-        {selectedClip ? (
+        {selectedClip && selectedTrack ? (
           <div className="clip-inspector">
             <div className="inspector-summary">
-              <small>選択中のクリップ</small>
+              <small>選択中のクリップ · {selectedTrack.name}</small>
               <strong>{state.assets.find((asset) => asset.id === selectedClip.assetId)?.name ?? selectedClip.assetId}</strong>
               <span>
                 {seconds(selectedClip.timelineStartUs)}s → {seconds(selectedClip.timelineStartUs + clipDurationUs(selectedClip))}s
@@ -294,8 +302,16 @@ function App() {
               </span>
             </div>
             <div className="button-row inspector-actions">
-              <button type="button" disabled={selectedIndex === 0} onClick={() => run(() => controller.execute({ type: "moveClip", clipId: selectedClip.id, toIndex: selectedIndex - 1 }))}>前へ移動</button>
-              <button type="button" disabled={selectedIndex === state.videoClips.length - 1} onClick={() => run(() => controller.execute({ type: "moveClip", clipId: selectedClip.id, toIndex: selectedIndex + 1 }))}>後ろへ移動</button>
+              <button
+                type="button"
+                disabled={selectedIndex === 0}
+                onClick={() => run(() => controller.execute({ type: "moveClip", clipId: selectedClip.id, toIndex: selectedIndex - 1 }))}
+              >前へ移動</button>
+              <button
+                type="button"
+                disabled={selectedIndex === selectedTrack.clips.length - 1}
+                onClick={() => run(() => controller.execute({ type: "moveClip", clipId: selectedClip.id, toIndex: selectedIndex + 1 }))}
+              >後ろへ移動</button>
               <button type="button" onClick={splitSelectedClip}>再生ヘッドで分割</button>
               <button type="button" onClick={() => trim(selectedClip, "in")}>開始を0.1秒カット</button>
               <button type="button" onClick={() => trim(selectedClip, "out")}>終了を0.1秒カット</button>
@@ -307,61 +323,84 @@ function App() {
                   type="button"
                   className="transition-button active"
                   onClick={toggleSelectedDissolve}
-                >
-                  次のクリップとの0.5秒ディゾルブを外す（Shift+D）
-                </button>
+                >次のクリップとの0.5秒ディゾルブを外す（Shift+D）</button>
               ) : (
                 <button
                   type="button"
                   className="transition-button"
                   onClick={toggleSelectedDissolve}
-                >
-                  次のクリップとの境界に0.5秒ディゾルブ（Shift+D）
-                </button>
+                >次のクリップとの境界に0.5秒ディゾルブ（Shift+D）</button>
               )
             )}
           </div>
         ) : (
-          <p className="muted inspector-empty">V1のクリップを選択すると、移動・カット・削除・ディゾルブ操作が表示されます。</p>
+          <p className="muted inspector-empty">video clipを選択すると、移動・カット・削除・ディゾルブ操作が表示されます。</p>
         )}
 
-        {state.audioClip && (
-          <div className="audio-strip">
-            <strong>A1 音楽</strong>
-            <span>{state.assets.find((asset) => asset.id === state.audioClip?.assetId)?.name}</span>
-            <label>
-              Start (s)
-              <input
-                type="number"
-                min="0"
-                step="0.1"
-                value={seconds(state.audioClip.timelineStartUs)}
-                onChange={(event) => run(() => controller.execute({
-                  type: "setAudio",
-                  audio: {
-                    ...state.audioClip!,
-                    timelineStartUs: Math.max(0, Math.round(Number(event.target.value) * US)),
-                  },
-                }))}
-              />
-            </label>
-            <label>
-              Volume
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={state.audioClip.volume}
-                onChange={(event) => run(() => controller.execute({
-                  type: "setAudio",
-                  audio: { ...state.audioClip!, volume: Number(event.target.value) },
-                }))}
-              />
-            </label>
-            <button type="button" onClick={() => run(() => controller.execute({ type: "setAudio", audio: null }))}>音源解除</button>
-          </div>
-        )}
+        {audioTracks.map((track) => {
+          const clip = track.clips[0] ?? null;
+          return (
+            <div className="audio-strip" key={track.id}>
+              <strong>{track.name} 音声</strong>
+              {clip ? (
+                <>
+                  <span>{state.assets.find((asset) => asset.id === clip.assetId)?.name}</span>
+                  <label>
+                    Start (s)
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={seconds(clip.timelineStartUs)}
+                      onChange={(event) => run(() => controller.execute({
+                        type: "setAudio",
+                        trackId: track.id,
+                        audio: {
+                          ...clip,
+                          timelineStartUs: Math.max(0, Math.round(Number(event.target.value) * US)),
+                        },
+                      }))}
+                    />
+                  </label>
+                  <label>
+                    Volume
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={clip.volume}
+                      onChange={(event) => run(() => controller.execute({
+                        type: "setAudio",
+                        trackId: track.id,
+                        audio: { ...clip, volume: Number(event.target.value) },
+                      }))}
+                    />
+                  </label>
+                  <button type="button" onClick={() => run(() => controller.execute({ type: "setAudio", trackId: track.id, audio: null }))}>音源解除</button>
+                </>
+              ) : (
+                <label>
+                  音源を設定
+                  <select
+                    defaultValue=""
+                    onChange={(event) => {
+                      const assetId = event.target.value;
+                      if (assetId) setAudioTrack(assetId, track.id);
+                      event.currentTarget.value = "";
+                    }}
+                  >
+                    <option value="" disabled>選択…</option>
+                    {state.assets.filter((asset) => asset.kind === "audio").map((asset) => (
+                      <option key={asset.id} value={asset.id}>{asset.name}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {track.muted && <span className="muted">ミュート中</span>}
+            </div>
+          );
+        })}
       </section>
 
       <ExportPanel state={state} runtime={runtime} />
