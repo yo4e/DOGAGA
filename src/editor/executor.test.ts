@@ -124,7 +124,7 @@ describe("executeCommand multi-track", () => {
 
     state = executeCommand(state, { type: "addTrack", track: { id: "video-2", kind: "video", name: "V2" } });
     state = addVideo(state, "overlay", "v1", 2 * S, "video-2");
-    expect(() => executeCommand(state, { type: "removeTrack", trackId: "video-2" })).toThrow(/空/);
+    expect(() => executeCommand(state, { type: "removeTrack", trackId: "video-2" })).toThrow(/削除できません/);
     state = executeCommand(state, { type: "deleteClip", clipId: "overlay" });
     state = executeCommand(state, { type: "removeTrack", trackId: "video-2" });
     expect(getVideoTracks(state)).toHaveLength(1);
