@@ -1,3 +1,14 @@
+import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { CornersInIcon } from "@phosphor-icons/react/CornersIn";
+import { CornersOutIcon } from "@phosphor-icons/react/CornersOut";
+import { FilmStripIcon } from "@phosphor-icons/react/FilmStrip";
+import { PauseIcon } from "@phosphor-icons/react/Pause";
+import { PlayIcon } from "@phosphor-icons/react/Play";
+import { SkipBackIcon } from "@phosphor-icons/react/SkipBack";
+import { SkipForwardIcon } from "@phosphor-icons/react/SkipForward";
+import { SpeakerHighIcon } from "@phosphor-icons/react/SpeakerHigh";
+import { SpeakerSlashIcon } from "@phosphor-icons/react/SpeakerSlash";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { EditorController } from "../editor/controller";
 import {
@@ -16,6 +27,7 @@ import {
 import type { MediaRuntime } from "../media/runtime";
 
 const US = 1_000_000;
+const MEDIA_SYNC_TOLERANCE_SECONDS = 0.05;
 type Props = {
   state: EditorState;
   controller: EditorController;
@@ -69,7 +81,7 @@ function VideoLayer({ clip, state, runtime, playing, trackOpacity }: {
 
   const syncVideo = (video: HTMLVideoElement) => {
     video.playbackRate = clip.playbackRate;
-    if (video.readyState > 0 && (!playing || Math.abs(video.currentTime - targetSeconds) > 0.12)) {
+    if (video.readyState > 0 && (!playing || Math.abs(video.currentTime - targetSeconds) > MEDIA_SYNC_TOLERANCE_SECONDS)) {
       video.currentTime = targetSeconds;
     }
     if (playing) {
@@ -121,8 +133,12 @@ function clockLabel(us: number): string {
 
 export function Preview({ state, controller, runtime }: Props) {
   const [playing, setPlaying] = useState(false);
+  const [masterVolume, setMasterVolume] = useState(1);
+  const [fullscreen, setFullscreen] = useState(false);
   const clockRef = useRef<Clock | null>(null);
   const audioRefs = useRef(new Map<string, HTMLAudioElement>());
+  const editorRef = useRef<HTMLDivElement>(null);
+  const lastAudibleVolumeRef = useRef(1);
   const durationUs = timelineDurationUs(state);
 
   const videoTracks = useMemo(() => getVideoTracks(state), [state.tracks]);
@@ -151,14 +167,14 @@ export function Preview({ state, controller, runtime }: Props) {
     }
 
     const active = state.playheadUs >= clip.timelineStartUs && state.playheadUs < audioEndUs(clip);
-    audio.volume = clip.volume;
+    audio.volume = Math.min(1, clip.volume * masterVolume);
     if (!active) {
       audio.pause();
       return;
     }
 
     const target = audioTargetSeconds(clip, state.playheadUs);
-    if (audio.readyState > 0 && (!playing || Math.abs(audio.currentTime - target) > 0.15)) {
+    if (audio.readyState > 0 && (!playing || Math.abs(audio.currentTime - target) > MEDIA_SYNC_TOLERANCE_SECONDS)) {
       audio.currentTime = target;
     }
     if (playing) {
@@ -171,6 +187,30 @@ export function Preview({ state, controller, runtime }: Props) {
   const seek = (nextUs: number) => {
     controller.setPlayheadUs(nextUs);
     if (playing) clockRef.current = { wallMs: performance.now(), playheadUs: nextUs };
+  };
+
+  const seekBy = (deltaUs: number) => {
+    seek(Math.min(durationUs, Math.max(0, state.playheadUs + deltaUs)));
+  };
+
+  const changeMasterVolume = (value: number) => {
+    const next = Math.min(1, Math.max(0, value));
+    if (next > 0) lastAudibleVolumeRef.current = next;
+    setMasterVolume(next);
+  };
+
+  const toggleMasterMute = () => {
+    changeMasterVolume(masterVolume > 0 ? 0 : lastAudibleVolumeRef.current);
+  };
+
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => undefined);
+      return;
+    }
+    if (editorRef.current?.requestFullscreen) {
+      void editorRef.current.requestFullscreen().catch(() => undefined);
+    }
   };
 
   useEffect(() => {
@@ -204,7 +244,13 @@ export function Preview({ state, controller, runtime }: Props) {
       const audio = audioRefs.current.get(layer.clip.id);
       if (audio) syncAudio(audio, layer);
     }
-  }, [audioLayers, playing, state.playheadUs]);
+  }, [audioLayers, masterVolume, playing, state.playheadUs]);
+
+  useEffect(() => {
+    const onFullscreenChange = () => setFullscreen(document.fullscreenElement === editorRef.current);
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
 
   const startAudiosAt = (startUs: number) => {
     for (const layer of audioLayers) {
@@ -213,7 +259,7 @@ export function Preview({ state, controller, runtime }: Props) {
       const { clip } = layer;
       if (startUs < clip.timelineStartUs || startUs >= audioEndUs(clip)) continue;
       if (audio.readyState > 0) audio.currentTime = audioTargetSeconds(clip, startUs);
-      audio.volume = clip.volume;
+      audio.volume = Math.min(1, clip.volume * masterVolume);
       void audio.play().catch(() => undefined);
     }
   };
@@ -234,7 +280,7 @@ export function Preview({ state, controller, runtime }: Props) {
   };
 
   return (
-    <div className="preview-editor">
+    <div className="preview-editor" ref={editorRef}>
       <div className="preview-monitor">
         <div
           className="preview-stage"
@@ -255,10 +301,22 @@ export function Preview({ state, controller, runtime }: Props) {
           ))}
           {!activeVideoLayers.length && (
             <div className="preview-empty">
+              <FilmStripIcon className="preview-empty-icon" size={42} weight="light" aria-hidden="true" />
               <strong>{allVideos.length ? "再生位置に表示中の映像がありません" : "動画をタイムラインへ追加してください"}</strong>
             </div>
           )}
         </div>
+        <input
+          className="preview-scrubber"
+          aria-label="再生位置"
+          type="range"
+          min="0"
+          max={Math.max(0, durationUs)}
+          step="10000"
+          value={Math.min(state.playheadUs, Math.max(0, durationUs))}
+          disabled={durationUs <= 0}
+          onChange={(event) => seek(Number(event.target.value))}
+        />
       </div>
 
       {audioLayers.map((layer) => {
@@ -279,25 +337,73 @@ export function Preview({ state, controller, runtime }: Props) {
       })}
 
       <div className="transport">
-        <span>{clockLabel(state.playheadUs)} / {clockLabel(durationUs)}</span>
-        <button
-          type="button"
-          aria-pressed={playing}
-          onClick={togglePlayback}
-          disabled={durationUs <= 0}
-        >
-          {playing ? "一時停止" : "再生"}
-        </button>
-        <input
-          aria-label="再生位置"
-          type="range"
-          min="0"
-          max={Math.max(0, durationUs)}
-          step="10000"
-          value={Math.min(state.playheadUs, Math.max(0, durationUs))}
-          disabled={durationUs <= 0}
-          onChange={(event) => seek(Number(event.target.value))}
-        />
+        <span className="transport-time">{clockLabel(state.playheadUs)} / {clockLabel(durationUs)}</span>
+        <div className="transport-controls" role="group" aria-label="再生コントロール">
+          <button type="button" title="先頭へ" aria-label="先頭へ" disabled={durationUs <= 0} onClick={() => seek(0)}>
+            <SkipBackIcon size={17} weight="regular" aria-hidden="true" />
+          </button>
+          <button type="button" title="0.1秒戻る" aria-label="0.1秒戻る" disabled={durationUs <= 0} onClick={() => seekBy(-100_000)}>
+            <CaretLeftIcon size={16} weight="fill" aria-hidden="true" />
+          </button>
+          <button
+            className="transport-play"
+            type="button"
+            title={playing ? "一時停止" : "再生"}
+            aria-label={playing ? "一時停止" : "再生"}
+            aria-pressed={playing}
+            onClick={togglePlayback}
+            disabled={durationUs <= 0}
+          >
+            {playing ? (
+              <PauseIcon size={19} weight="fill" aria-hidden="true" />
+            ) : (
+              <PlayIcon size={19} weight="fill" aria-hidden="true" />
+            )}
+          </button>
+          <button type="button" title="0.1秒進む" aria-label="0.1秒進む" disabled={durationUs <= 0} onClick={() => seekBy(100_000)}>
+            <CaretRightIcon size={16} weight="fill" aria-hidden="true" />
+          </button>
+          <button type="button" title="末尾へ" aria-label="末尾へ" disabled={durationUs <= 0} onClick={() => seek(durationUs)}>
+            <SkipForwardIcon size={17} weight="regular" aria-hidden="true" />
+          </button>
+        </div>
+        <div className="transport-end">
+          <button
+            type="button"
+            title={masterVolume > 0 ? "プレビュー音声をミュート" : "プレビュー音声のミュートを解除"}
+            aria-label={masterVolume > 0 ? "プレビュー音声をミュート" : "プレビュー音声のミュートを解除"}
+            aria-pressed={masterVolume === 0}
+            onClick={toggleMasterMute}
+          >
+            {masterVolume > 0 ? (
+              <SpeakerHighIcon size={18} weight="regular" aria-hidden="true" />
+            ) : (
+              <SpeakerSlashIcon size={18} weight="regular" aria-hidden="true" />
+            )}
+          </button>
+          <input
+            aria-label="プレビュー音量"
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={masterVolume}
+            onChange={(event) => changeMasterVolume(Number(event.target.value))}
+          />
+          <button
+            type="button"
+            title={fullscreen ? "全画面表示を終了" : "プレビューを全画面表示"}
+            aria-label={fullscreen ? "全画面表示を終了" : "プレビューを全画面表示"}
+            disabled={!document.fullscreenEnabled}
+            onClick={toggleFullscreen}
+          >
+            {fullscreen ? (
+              <CornersInIcon size={18} weight="regular" aria-hidden="true" />
+            ) : (
+              <CornersOutIcon size={18} weight="regular" aria-hidden="true" />
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );

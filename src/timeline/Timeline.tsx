@@ -1,3 +1,10 @@
+import { ArrowDownIcon } from "@phosphor-icons/react/ArrowDown";
+import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
+import { EyeIcon } from "@phosphor-icons/react/Eye";
+import { EyeSlashIcon } from "@phosphor-icons/react/EyeSlash";
+import { SpeakerHighIcon } from "@phosphor-icons/react/SpeakerHigh";
+import { SpeakerSlashIcon } from "@phosphor-icons/react/SpeakerSlash";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
 import {
   useEffect,
   useMemo,
@@ -166,7 +173,11 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
                 aria-label={track.visible ? `${track.name}を非表示にする` : `${track.name}を表示する`}
                 onClick={() => controller.execute({ type: "setTrackVisibility", trackId: track.id, visible: !track.visible })}
               >
-                {track.visible ? "隠す" : "表示"}
+                {track.visible ? (
+                  <EyeIcon size={16} weight="regular" aria-hidden="true" />
+                ) : (
+                  <EyeSlashIcon size={16} weight="regular" aria-hidden="true" />
+                )}
               </button>
               <input
                 aria-label={`${track.name}の不透明度`}
@@ -190,7 +201,11 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
               aria-label={track.muted ? `${track.name}のミュートを解除する` : `${track.name}をミュートする`}
               onClick={() => controller.execute({ type: "setTrackMute", trackId: track.id, muted: !track.muted })}
             >
-              {track.muted ? "解除" : "消音"}
+              {track.muted ? (
+                <SpeakerSlashIcon size={16} weight="regular" aria-hidden="true" />
+              ) : (
+                <SpeakerHighIcon size={16} weight="regular" aria-hidden="true" />
+              )}
             </button>
           )}
           <button
@@ -201,7 +216,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
             onClick={() => {
               if (upIndex !== null) controller.execute({ type: "moveTrack", trackId: track.id, toIndex: upIndex });
             }}
-          >上</button>
+          ><ArrowUpIcon size={14} weight="regular" aria-hidden="true" /></button>
           <button
             type="button"
             title="下へ"
@@ -210,7 +225,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
             onClick={() => {
               if (downIndex !== null) controller.execute({ type: "moveTrack", trackId: track.id, toIndex: downIndex });
             }}
-          >下</button>
+          ><ArrowDownIcon size={14} weight="regular" aria-hidden="true" /></button>
           {!isDefault && (
             <button
               type="button"
@@ -218,7 +233,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
               aria-label={`${track.name}を削除`}
               disabled={track.clips.length > 0}
               onClick={() => controller.execute({ type: "removeTrack", trackId: track.id })}
-            >削除</button>
+            ><TrashIcon size={15} weight="regular" aria-hidden="true" /></button>
           )}
         </div>
       </div>
