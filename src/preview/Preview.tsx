@@ -16,8 +16,6 @@ import {
 import type { MediaRuntime } from "../media/runtime";
 
 const US = 1_000_000;
-const PREVIEW_MAX_HEIGHT = 450;
-
 type Props = {
   state: EditorState;
   controller: EditorController;
@@ -111,12 +109,21 @@ function audioTargetSeconds(clip: AudioClip, playheadUs: number): number {
   return (clip.sourceInUs + (playheadUs - clip.timelineStartUs)) / US;
 }
 
+function clockLabel(us: number): string {
+  const totalHundredths = Math.max(0, Math.floor(us / 10_000));
+  const totalSeconds = Math.floor(totalHundredths / 100);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const hundredths = totalHundredths % 100;
+  return `${[hours, minutes, seconds].map((value) => String(value).padStart(2, "0")).join(":")}.${String(hundredths).padStart(2, "0")}`;
+}
+
 export function Preview({ state, controller, runtime }: Props) {
   const [playing, setPlaying] = useState(false);
   const clockRef = useRef<Clock | null>(null);
   const audioRefs = useRef(new Map<string, HTMLAudioElement>());
   const durationUs = timelineDurationUs(state);
-  const canvasRatio = state.canvas.width / state.canvas.height;
 
   const videoTracks = useMemo(() => getVideoTracks(state), [state.tracks]);
   const allVideos = useMemo(() => allVideoClips(state), [state.tracks]);
@@ -228,29 +235,30 @@ export function Preview({ state, controller, runtime }: Props) {
 
   return (
     <div className="preview-editor">
-      <div
-        className="preview-stage"
-        aria-label={`${state.canvas.width}×${state.canvas.height} 動画プレビュー`}
-        style={{
-          aspectRatio: `${state.canvas.width} / ${state.canvas.height}`,
-          width: `min(100%, ${Math.round(canvasRatio * PREVIEW_MAX_HEIGHT)}px)`,
-        }}
-      >
-        {activeVideoLayers.map(({ track, clip }) => (
-          <VideoLayer
-            key={clip.id}
-            clip={clip}
-            state={state}
-            runtime={runtime}
-            playing={playing}
-            trackOpacity={track.opacity}
-          />
-        ))}
-        {!activeVideoLayers.length && (
-          <div className="preview-empty">
-            <strong>{allVideos.length ? "再生位置に表示中の映像がありません" : "動画をタイムラインへ追加してください"}</strong>
-          </div>
-        )}
+      <div className="preview-monitor">
+        <div
+          className="preview-stage"
+          aria-label={`${state.canvas.width}×${state.canvas.height} 動画プレビュー`}
+          style={{
+            aspectRatio: `${state.canvas.width} / ${state.canvas.height}`,
+          }}
+        >
+          {activeVideoLayers.map(({ track, clip }) => (
+            <VideoLayer
+              key={clip.id}
+              clip={clip}
+              state={state}
+              runtime={runtime}
+              playing={playing}
+              trackOpacity={track.opacity}
+            />
+          ))}
+          {!activeVideoLayers.length && (
+            <div className="preview-empty">
+              <strong>{allVideos.length ? "再生位置に表示中の映像がありません" : "動画をタイムラインへ追加してください"}</strong>
+            </div>
+          )}
+        </div>
       </div>
 
       {audioLayers.map((layer) => {
@@ -271,10 +279,15 @@ export function Preview({ state, controller, runtime }: Props) {
       })}
 
       <div className="transport">
-        <button type="button" onClick={togglePlayback} disabled={durationUs <= 0}>
+        <span>{clockLabel(state.playheadUs)} / {clockLabel(durationUs)}</span>
+        <button
+          type="button"
+          aria-pressed={playing}
+          onClick={togglePlayback}
+          disabled={durationUs <= 0}
+        >
           {playing ? "一時停止" : "再生"}
         </button>
-        <span>{(state.playheadUs / US).toFixed(2)}s / {(durationUs / US).toFixed(2)}s</span>
         <input
           aria-label="再生位置"
           type="range"

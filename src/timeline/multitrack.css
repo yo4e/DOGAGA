@@ -12,18 +12,20 @@
   --timeline-audio-hover: #596282;
   --timeline-selected: #f2b84b;
   --timeline-playhead: #e64336;
-  gap: 12px;
+  gap: 8px;
 }
 
 .timeline-toolbar {
   min-height: 38px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #e1e3e7;
+  padding: 0 2px;
+  border-bottom: 0;
 }
 
-.timeline-toolbar p {
-  color: var(--timeline-muted);
-  line-height: 1.45;
+.timeline-toolbar h2 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
 }
 
 .timeline-toolbar-actions {
@@ -57,7 +59,7 @@
 
 .timeline-workspace {
   display: grid;
-  grid-template-columns: 188px minmax(0, 1fr);
+  grid-template-columns: 164px minmax(0, 1fr);
   overflow: hidden;
   border: 1px solid var(--timeline-border-strong);
   border-radius: 0;
@@ -135,9 +137,9 @@
 }
 
 .track-mini-controls button {
-  flex: 1 1 32px;
-  min-width: 32px;
-  height: 32px;
+  flex: 1 1 28px;
+  min-width: 28px;
+  height: 28px;
   padding: 0 3px;
   border: 1px solid #c4c9d1;
   border-radius: 2px;
@@ -170,10 +172,10 @@
 }
 
 .track-mini-controls input[type="range"] {
-  flex: 0 1 32px;
-  width: 32px;
-  min-width: 32px;
-  height: 32px;
+  flex: 0 1 28px;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
   margin: 0;
   accent-color: var(--timeline-blue);
 }
@@ -191,7 +193,7 @@
 
 .timeline-canvas {
   min-height: 190px;
-  background: var(--timeline-lane);
+  background: #fff;
 }
 
 .time-ruler {
@@ -202,7 +204,7 @@
   border: 0;
   border-bottom: 1px solid var(--timeline-border-strong);
   border-radius: 0;
-  background: #eef0f3;
+  background: #f5f6f8;
   color: var(--timeline-ink);
   text-align: left;
   cursor: crosshair;
@@ -211,7 +213,7 @@
 .time-ruler:hover:not(:disabled) {
   border-color: transparent;
   border-bottom-color: var(--timeline-border-strong);
-  background: #e7eaee;
+  background: #edf0f4;
 }
 
 .time-ruler:focus-visible {
@@ -236,7 +238,7 @@
   right: 0;
   height: 66px;
   border-bottom: 1px solid var(--timeline-border);
-  background: var(--timeline-lane);
+  background: #fff;
   cursor: crosshair;
 }
 
@@ -244,7 +246,7 @@
 .audio-lane { top: 104px; }
 
 .timeline-lane:nth-of-type(even) {
-  background: var(--timeline-lane-alt);
+  background: #f7f8fa;
 }
 
 .timeline-lane:hover {
@@ -353,10 +355,12 @@
 
 .track-empty {
   position: absolute;
-  left: 14px;
+  left: 50%;
   top: 25px;
-  color: #566170;
+  transform: translateX(-50%);
+  color: #77808d;
   font-size: 11px;
+  white-space: nowrap;
   pointer-events: none;
 }
 
@@ -388,7 +392,7 @@
   }
 
   .timeline-workspace {
-    grid-template-columns: 188px minmax(0, 1fr);
+    grid-template-columns: 164px minmax(0, 1fr);
   }
 
   .track-label,

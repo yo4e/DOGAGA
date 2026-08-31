@@ -92,21 +92,28 @@ input[type="range"] { accent-color: var(--accent); }
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 7px 20px;
+  padding: 7px 18px;
   border-bottom: 1px solid var(--line);
   background: rgb(255 255 255 / 0.96);
+}
+
+.app-bar-primary {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 72px;
 }
 
 .brand-lockup {
   min-width: 0;
   display: flex;
   align-items: baseline;
-  gap: 14px;
+  gap: 18px;
 }
 
 .app-logo {
   margin: 0;
-  font-size: clamp(24px, 2.5vw, 32px);
+  font-size: 28px;
   line-height: 1;
   letter-spacing: -0.055em;
 }
@@ -163,7 +170,7 @@ input[type="range"] { accent-color: var(--accent); }
 
 .editor-workspace {
   display: grid;
-  grid-template-columns: minmax(280px, 330px) minmax(0, 1fr);
+  grid-template-columns: 450px minmax(0, 1fr);
   align-items: stretch;
   border-bottom: 1px solid var(--line);
 }
@@ -171,7 +178,7 @@ input[type="range"] { accent-color: var(--accent); }
 .panel {
   min-width: 0;
   margin: 0;
-  padding: 18px 20px;
+  padding: 16px 20px;
   background: var(--surface);
   border: 0;
   border-bottom: 1px solid var(--line);
@@ -190,28 +197,29 @@ input[type="range"] { accent-color: var(--accent); }
   border-right: 1px solid var(--line);
   border-bottom: 0;
   background: #fbfbfc;
+  padding: 18px 20px;
 }
 
 .media-rail { min-width: 0; }
 
-.media-panel > h2 { margin-bottom: 18px; }
+.media-panel > h2 { margin-bottom: 22px; }
 
 .preview-panel {
   border-bottom: 0;
-  padding: 16px 22px 18px;
+  padding: 23px 22px 14px;
 }
 
 .preview-main { min-width: 0; }
 
 .panel-heading {
   display: flex;
-  align-items: flex-start;
+  align-items: baseline;
   justify-content: space-between;
   gap: 18px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
-.panel-heading h2 { margin-bottom: 3px; }
+.panel-heading h2 { margin: 0; }
 
 .canvas-resolution {
   color: var(--muted);
@@ -239,10 +247,11 @@ input[type="range"] { accent-color: var(--accent); }
 .file-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 13px 10px;
+  gap: 19px 10px;
 }
 
 .file-row > label:nth-child(-n + 2) { grid-column: 1 / -1; }
+.file-row > label:nth-child(n + 3) { margin-top: 14px; }
 
 input[type="file"] {
   width: 100%;
@@ -252,7 +261,7 @@ input[type="file"] {
 }
 
 input[type="file"]::file-selector-button {
-  min-height: 36px;
+  min-height: 44px;
   margin-right: 9px;
   padding: 7px 11px;
   border: 1px solid var(--line-strong);
@@ -269,6 +278,35 @@ input[type="file"]:hover::file-selector-button {
   background: var(--surface-muted);
 }
 
+.media-dropzone {
+  min-height: 138px;
+  margin-top: 28px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 6px;
+  padding: 18px;
+  border: 2px dashed #bfc6d0;
+  border-radius: 0;
+  background: #fff;
+  color: #404754;
+  text-align: center;
+  transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+
+.media-dropzone strong { font-size: 13px; }
+
+.media-dropzone span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.media-dropzone.drag-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+}
+
 .button-row {
   display: flex;
   gap: 8px;
@@ -278,7 +316,7 @@ input[type="file"]:hover::file-selector-button {
 .asset-list {
   display: grid;
   gap: 0;
-  margin-top: 18px;
+  margin-top: 0;
   border-top: 1px solid var(--line);
 }
 
@@ -309,16 +347,30 @@ input[type="file"]:hover::file-selector-button {
 
 .preview-editor {
   display: grid;
-  gap: 10px;
+  gap: 8px;
+}
+
+.preview-monitor {
+  width: 100%;
+  height: clamp(180px, 30.25vw, 450px);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid #1d2026;
+  border-radius: 0;
+  background: radial-gradient(circle at 50% 46%, #2a2d34 0%, #202228 58%, #181a1f 100%);
 }
 
 .preview-stage {
   position: relative;
   overflow: hidden;
+  width: auto;
+  height: 100%;
+  max-width: 100%;
   margin-inline: auto;
-  border: 1px solid #272b33;
+  border: 0;
   border-radius: 0;
-  background: #15171b;
+  background: transparent;
   box-shadow: none;
 }
 
@@ -344,21 +396,29 @@ input[type="file"]:hover::file-selector-button {
 
 .transport {
   display: grid;
-  grid-template-columns: auto auto minmax(160px, 1fr);
+  grid-template-columns: minmax(0, 0.9fr) auto minmax(0, 1.1fr);
   align-items: center;
-  gap: 11px;
+  gap: 14px;
+  min-height: 42px;
 }
 
 .transport > button {
-  min-width: 84px;
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #fff;
+  min-width: 78px;
+  justify-self: center;
+  border-color: var(--line-strong);
+  background: #fff;
+  color: var(--ink);
 }
 
 .transport > button:hover:not(:disabled) {
-  border-color: var(--accent-hover);
-  background: var(--accent-hover);
+  border-color: #8f98a5;
+  background: var(--surface-muted);
+}
+
+.transport > button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-hover);
 }
 
 .transport > button:disabled {
@@ -368,16 +428,20 @@ input[type="file"]:hover::file-selector-button {
 }
 
 .transport > span {
+  justify-self: start;
   color: #4f5663;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-.transport input[type="range"] { width: 100%; }
+.transport input[type="range"] {
+  width: min(230px, 100%);
+  justify-self: end;
+}
 
 .timeline-panel {
-  padding: 16px 20px 20px;
+  padding: 12px 10px 18px;
   background: var(--surface);
 }
 
@@ -388,7 +452,7 @@ input[type="file"]:hover::file-selector-button {
   font-size: 12px;
 }
 
-.timeline-editor { display: grid; gap: 9px; }
+.timeline-editor { display: grid; gap: 8px; }
 
 .timeline-workspace { display: grid; }
 
@@ -399,10 +463,11 @@ input[type="file"]:hover::file-selector-button {
   gap: 16px;
 }
 
-.timeline-toolbar p {
+.timeline-help {
   margin: 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 .timeline-toolbar label {
@@ -487,7 +552,7 @@ input[type="file"]:hover::file-selector-button {
 .agent-status {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 10px;
   min-width: 0;
   padding: 0;
@@ -503,11 +568,12 @@ input[type="file"]:hover::file-selector-button {
 }
 
 .agent-status strong {
-  color: var(--success);
+  color: var(--ink);
   font-size: 12px;
 }
 
 .agent-status span { color: var(--muted); }
+.agent-status[data-supported="true"] span { color: var(--success); }
 .agent-status small { color: var(--danger); }
 
 .developer-details {
@@ -610,12 +676,13 @@ pre {
   .app-tagline { display: none; }
   .preview-panel { padding-inline: 16px; }
   .app-bar-tools { flex-wrap: wrap; }
-  .agent-status { order: 2; width: 100%; }
+  .app-bar-primary { gap: 24px; }
 }
 
 @media (max-width: 760px) {
   .app-shell { border-inline: 0; }
   .app-bar { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .app-bar-primary { width: 100%; align-items: flex-start; justify-content: space-between; }
   .brand-lockup { align-items: flex-start; flex-direction: column; gap: 4px; }
   .app-tagline { display: block; }
   .agent-status { justify-content: flex-start; }
@@ -626,8 +693,9 @@ pre {
   .panel-heading,
   .timeline-toolbar { align-items: stretch; flex-direction: column; }
   .canvas-controls { display: grid; grid-template-columns: 1fr 1fr; }
-  .transport { grid-template-columns: auto 1fr; }
-  .transport input[type="range"] { grid-column: 1 / -1; }
+  .preview-monitor { height: min(450px, 56vw); }
+  .transport { grid-template-columns: 1fr auto 1fr; }
+  .transport input[type="range"] { width: min(200px, 100%); }
   .clip-inspector { grid-template-columns: 1fr; }
   .inspector-actions { justify-content: flex-start; }
   .developer-grid,
@@ -641,4 +709,9 @@ pre {
   .file-row,
   .canvas-controls { grid-template-columns: 1fr; }
   .file-row > label { grid-column: 1; }
+  .file-row > label:nth-child(n + 3) { margin-top: 0; }
+  .app-bar-primary { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .transport { grid-template-columns: minmax(0, 1fr) auto; }
+  .transport > span { font-size: 10px; }
+  .transport input[type="range"] { grid-column: 1 / -1; width: 100%; }
 }

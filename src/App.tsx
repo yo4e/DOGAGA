@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, type DragEvent } from "react";
 import { EditorController } from "./editor/controller";
 import { EditorCommandError } from "./editor/executor";
 import {
@@ -14,6 +14,7 @@ import {
   type VideoClip,
 } from "./editor/model";
 import { ExportPanel } from "./export/ExportPanel";
+import { inferAssetKind } from "./media/kind";
 import { MediaRuntime } from "./media/runtime";
 import { probeMediaFile } from "./media/probe";
 import { Preview } from "./preview/Preview";
@@ -48,6 +49,7 @@ function App() {
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
   const [videoTargetTrackId, setVideoTargetTrackId] = useState<string | null>(null);
   const [audioTargetTrackId, setAudioTargetTrackId] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
   const videoClips = useMemo(() => allVideoClips(state), [state.tracks]);
   const videoTracks = useMemo(() => getVideoTracks(state), [state.tracks]);
   const audioTracks = useMemo(() => getAudioTracks(state), [state.tracks]);
@@ -89,21 +91,57 @@ function App() {
     }
   };
 
-  const loadFiles = async (files: FileList | null, kind: AssetKind) => {
-    if (!files?.length) return;
+  const registerMediaFiles = async (
+    entries: Array<{ file: File; kind: AssetKind }>,
+    initialFailures: string[] = [],
+  ) => {
+    if (!entries.length && !initialFailures.length) return;
     setLoading(true);
     setError(null);
+    const failures = [...initialFailures];
     try {
-      for (const file of Array.from(files)) {
-        const asset = await probeMediaFile(file, kind);
-        runtime.register(asset.id, file);
-        controller.registerAsset(asset);
+      for (const { file, kind } of entries) {
+        try {
+          const asset = await probeMediaFile(file, kind);
+          runtime.register(asset.id, file);
+          try {
+            controller.registerAsset(asset);
+          } catch (caught) {
+            runtime.remove(asset.id);
+            throw caught;
+          }
+        } catch (caught) {
+          const message = caught instanceof Error ? caught.message : String(caught);
+          failures.push(message.startsWith(`${file.name}:`) ? message : `${file.name}: ${message}`);
+        }
       }
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught));
     } finally {
       setLoading(false);
+      setError(failures.length ? failures.join(" / ") : null);
     }
+  };
+
+  const loadFiles = async (files: FileList | null, kind: AssetKind) => {
+    if (!files?.length) return;
+    await registerMediaFiles(Array.from(files, (file) => ({ file, kind })));
+  };
+
+  const loadDroppedFiles = async (files: FileList) => {
+    const entries: Array<{ file: File; kind: AssetKind }> = [];
+    const unsupported: string[] = [];
+    for (const file of Array.from(files)) {
+      const kind = inferAssetKind(file);
+      if (kind) entries.push({ file, kind });
+      else unsupported.push(`${file.name}: 対応する動画・音声ファイルではありません`);
+    }
+    await registerMediaFiles(entries, unsupported);
+  };
+
+  const onMediaDrop = (event: DragEvent<HTMLDivElement>) => {
+    if (!Array.from(event.dataTransfer.types).includes("Files")) return;
+    event.preventDefault();
+    setDragActive(false);
+    void loadDroppedFiles(event.dataTransfer.files);
   };
 
   const addVideo = (assetId: string, trackId?: string) => {
@@ -232,12 +270,14 @@ function App() {
   return (
     <main className="app-shell">
       <header className="app-bar">
-        <div className="brand-lockup">
-          <h1 className="app-logo">DOGAGA</h1>
-          <span className="app-tagline">コンパクト WebMCP 動画エディタ</span>
+        <div className="app-bar-primary">
+          <div className="brand-lockup">
+            <h1 className="app-logo">DOGAGA</h1>
+            <span className="app-tagline">コンパクト WebMCP 動画エディタ</span>
+          </div>
+          <WebMCPTools controller={controller} onActivity={recordActivity} />
         </div>
         <div className="app-bar-tools">
-          <WebMCPTools controller={controller} onActivity={recordActivity} />
           <div className="app-bar-canvas" aria-label="動画の表示設定">
             <label>
               動画サイズ
@@ -300,7 +340,28 @@ function App() {
               </select>
             </label>
           </div>
-          {loading && <p>メディア情報を読み込み中…</p>}
+          <div
+            className={`media-dropzone${dragActive ? " drag-active" : ""}`}
+            aria-label="動画または音声ファイルのドロップ領域"
+            onDragEnter={(event) => {
+              if (!Array.from(event.dataTransfer.types).includes("Files")) return;
+              event.preventDefault();
+              setDragActive(true);
+            }}
+            onDragOver={(event) => {
+              if (!Array.from(event.dataTransfer.types).includes("Files")) return;
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "copy";
+            }}
+            onDragLeave={(event) => {
+              const related = event.relatedTarget;
+              if (!(related instanceof Node) || !event.currentTarget.contains(related)) setDragActive(false);
+            }}
+            onDrop={onMediaDrop}
+          >
+            <strong>{loading ? "メディア情報を読み込み中…" : "ここにファイルをドラッグ＆ドロップ"}</strong>
+            <span>対応形式の例: WebM、MP4、MP3、WAV</span>
+          </div>
           <div className="asset-list">
             {state.assets.map((asset) => (
               <div className="asset-card" key={asset.id}>
@@ -325,17 +386,14 @@ function App() {
 
         <section className="panel preview-panel preview-main">
           <div className="panel-heading">
-            <div>
-              <h2>プレビュー</h2>
-              <span className="canvas-resolution">{state.canvas.width} × {state.canvas.height}</span>
-            </div>
+            <h2>プレビュー</h2>
+            <span className="canvas-resolution">{state.canvas.width} × {state.canvas.height}</span>
           </div>
           <Preview state={state} controller={controller} runtime={runtime} />
         </section>
       </div>
 
       <section className="panel timeline-panel">
-        <h2>タイムライン</h2>
         <Timeline
           state={state}
           controller={controller}

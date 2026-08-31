@@ -12,24 +12,24 @@
 - Source pixels: 1487 × 1058
 - Implementation pixels: 1487 × 1058
 - Density normalization: 不要。source / implementationともに1:1で比較した。
-- State: 空の素材ライブラリ、landscape 16:9、contain、V2 / V1 / A1 / A2の空トラック、WebMCP 20/20 tools ready。
+- State: 空の素材ライブラリ、landscape 16:9、contain、UIから追加したV2 / A2を含むV2 / V1 / A1 / A2の空トラック、WebMCP 20/20 tools ready。
 
 ## Findings
 
 最終比較で、対応が必要なP0 / P1 / P2は残っていない。
 
 - Fonts and typography: sourceと同系統のsystem sans-serifで、ロゴ、セクション見出し、小さい操作ラベルの階層が維持されている。DOGAGAを`h1`にして文書構造も補正した。
-- Spacing and layout rhythm: sourceの「素材rail → preview → full-width timeline」を維持した。previewとtrackは要望どおり角丸0px。実装のpreviewは正確な16:9を保つためsourceより横幅を抑え、timelineを同一viewportに残している。
+- Spacing and layout rhythm: sourceの約450px素材rail、約450px高のviewer、直下のtransport、full-width timelineを同じ1487×1058 viewportで揃えた。previewとtrackは要望どおり角丸0px。viewer内の実canvasだけ正確な16:9 / 9:16 / 1:1 / 4:5を保つ。
 - Colors and tokens: white / warm gray / black / cobalt blueへ統一。selection / playhead / disabled / dangerの意味を分離し、focus outlineは白背景で判別できる濃いblueへ補正した。
-- Image and asset fidelity: このempty stateに必須の画像assetはない。sourceのフィルムglyphやtransport iconをCSS・文字記号で模造せず、実装済みの実機能だけを表示した。
+- Image and asset fidelity: viewerのdark radial surface、drop zone、ruler、lane copyをsourceへ合わせた。sourceのフィルムglyphや未実装transport iconをCSS・文字記号で模造せず、実機能だけを表示した。
 - Copy and content: 日本語を正本として素材、preview、timeline、書き出しの順に整理した。agent activityとsafe stateは開発者向けdetailsへ移した。
 - Responsiveness: 1487px、900px、800px、760px、320pxを確認。横ページoverflowなし。320pxではtrack sidebarを128pxへ縮め、lane表示幅を162px確保した。
 - Accessibility and states: disabledの再生 / 書き出しを灰色にし、有効なprimary actionと区別した。focus ring、track metadata、empty textのcontrastを補正し、track toggleのaria-labelも自然な日本語に修正した。
 
 ## Intentional product deviations
 
-- Source visualのdrag & drop zone、rail collapse、複数transport icon、track lock、frame-rate footerは現行production機能に存在しない。UIだけをfakeにせず、このbranchでは追加していない。
-- Sourceよりpreview左右に余白があるが、canvas presetの実比率を崩さずtimelineを上部に保つための意図的な制約で、操作性を損なわない。
+- Source visualのrail collapse、複数transport icon、track lock、frame-rate footerは対応するproduction handlerがないため追加していない。
+- Native file inputと既存track controlsは実ブラウザ動作・アクセシビリティを優先し、sourceのupload / eye / lock glyphを見た目だけで模造していない。
 
 ## Comparison history
 
@@ -52,17 +52,26 @@
 ## Primary interactions tested
 
 - UIからvideo / audio trackを追加し、V2 / A2がtimelineと追加先selectへ即時反映される。
+- Drop zoneは既存の`probeMediaFile` → runtime binding → `controller.registerAsset`経路をfile inputと共有する。MIME、空MIME＋拡張子、大文字拡張子、unsupportedの分類をunit testで確認した。
 - video track visibilityとaudio track muteを切り替え、UI stateが更新される。
 - canvas presetをsquare、fit modeをcoverへ変更し、preview比率が450 × 450へ変わる。landscape / containへ戻せる。
 - headerの「書き出し」から既存export panelへ移動できる。
 - WebMCP 20 toolsをproduction buildでdiscoverできる。
 - WebMCP `add_track`で作ったV2 / A2を同じUIへ反映し、`get_project_state`で同じlive stateを再取得できる。
 - `get_project_state`の結果にFile、object URL、absolute path、runtime bindingが含まれない。
-- production build previewのconsole error / warningは0件。
+- 320×900でdocument横overflowがなく、production build previewのconsole error / warningは0件。
 
 ## Residual test gaps / P3
 
 - 実メディアを使ったplayback / exportの再検証はこのUI-only branchでは行っていない。既存EditorControllerとhandlerは変更していない。
+- OSからの実ファイル混在dropは未実施。分類と部分失敗継続はunit / code pathで確認し、実メディアprobe自体は既存経路を再利用している。
 - 開発serverのReact StrictModeでは`use-webmcp-tool` cleanup由来のAbortErrorが出るが、production buildでは再現しない。
+
+### Iteration 3
+
+- [P2] sourceより素材railが狭く、drop zoneもなかった。railを450pxへ広げ、実動作するvideo / audio混在drop zoneを追加し、file input・target select・empty messageの縦位置をsourceへ揃えた。
+- [P2] previewがcanvas幅の800pxだけ黒く、sourceのviewerより左右が大きく空いていた。列幅いっぱいのviewerと中央の比率保持canvasを分離し、sourceと同じ約450px高のdark surfaceにした。
+- [P2] WebMCP status、transport、timeline ruler / empty labelsの配置がsourceから離れていた。statusをbrand側へ移し、transportをtime / play / seekの3領域へ整理、timelineを24px/秒・1300px幅・164px sidebarへ変更した。
+- Post-fix evidence: `/private/tmp/dogaga-design-comparison.png`。source / implementationを同じ1487×1058、同じ4-track empty stateで1枚にまとめ、主要領域の境界と密度を再比較した。
 
 final result: passed

@@ -26,7 +26,7 @@ import "./context-menu.css";
 
 const US = 1_000_000;
 const SCALE_OPTIONS = [24, 48, 80] as const;
-const MIN_TIMELINE_WIDTH = 1200;
+const MIN_TIMELINE_WIDTH = 1300;
 const RULER_HEIGHT = 38;
 const TRACK_HEIGHT = 66;
 
@@ -68,7 +68,7 @@ function fadeLabel(durationUs: number): string {
 }
 
 export function Timeline({ state, controller, selectedClipId, onSelectClip }: Props) {
-  const [pixelsPerSecond, setPixelsPerSecond] = useState<(typeof SCALE_OPTIONS)[number]>(48);
+  const [pixelsPerSecond, setPixelsPerSecond] = useState<(typeof SCALE_OPTIONS)[number]>(24);
   const [clipMenu, setClipMenu] = useState<ClipMenu | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const videoTracks = useMemo(() => getVideoTracks(state), [state.tracks]);
@@ -228,7 +228,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
   return (
     <div className="timeline-editor">
       <div className="timeline-toolbar">
-        <p>⌘K / Ctrl+Kで分割、Shift+Dでディゾルブ。右クリックで速度・フェード・移動先を変更できます。</p>
+        <h2>タイムライン</h2>
         <div className="timeline-toolbar-actions">
           <button type="button" onClick={() => addTrack("video")}>＋動画</button>
           <button type="button" onClick={() => addTrack("audio")}>＋音声</button>
@@ -312,7 +312,9 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
                         </button>
                       );
                     })}
-                    {!track.clips.length && <span className="track-empty">{track.name} は空です</span>}
+                    {!track.clips.length && (
+                      <span className="track-empty">動画クリップをここに追加（{track.name}）</span>
+                    )}
                     {state.transitions.map((transition) => {
                       const toClip = track.clips.find((clip) => clip.id === transition.toClipId);
                       if (!toClip) return null;
@@ -350,7 +352,9 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
                       <span>音量 {Math.round(clip.volume * 100)}%</span>
                     </div>
                   ))}
-                  {!track.clips.length && <span className="track-empty">{track.name} は空です</span>}
+                  {!track.clips.length && (
+                    <span className="track-empty">音声クリップをここに追加（{track.name}）</span>
+                  )}
                 </div>
               );
             })}
@@ -365,6 +369,8 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
           </div>
         </div>
       </div>
+
+      <p className="timeline-help">⌘K / Ctrl+Kで分割、Shift+Dでディゾルブ。右クリックで速度・フェード・移動先を変更できます。</p>
 
       {clipMenu && menuClip && menuLocation && (
         <div
