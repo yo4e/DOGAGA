@@ -26,8 +26,9 @@ import "./context-menu.css";
 
 const US = 1_000_000;
 const SCALE_OPTIONS = [24, 48, 80] as const;
+const MIN_TIMELINE_WIDTH = 1200;
 const RULER_HEIGHT = 38;
-const TRACK_HEIGHT = 76;
+const TRACK_HEIGHT = 66;
 
 type Props = {
   state: EditorState;
@@ -75,7 +76,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
   const rows = useMemo(() => getTimelineRows(state), [state.tracks]);
   const durationUs = timelineDurationUs(state);
   const contentSeconds = Math.max(10, Math.ceil(durationUs / US));
-  const canvasWidth = Math.max(720, contentSeconds * pixelsPerSecond);
+  const canvasWidth = Math.max(MIN_TIMELINE_WIDTH, contentSeconds * pixelsPerSecond);
   const visibleSeconds = canvasWidth / pixelsPerSecond;
   const step = tickStep(pixelsPerSecond, visibleSeconds);
   const ticks = useMemo(
@@ -162,7 +163,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
               <button
                 type="button"
                 title={track.visible ? "非表示にする" : "表示する"}
-                aria-label={`${track.name}を${track.visible ? "非表示" : "表示"}にする`}
+                aria-label={track.visible ? `${track.name}を非表示にする` : `${track.name}を表示する`}
                 onClick={() => controller.execute({ type: "setTrackVisibility", trackId: track.id, visible: !track.visible })}
               >
                 {track.visible ? "隠す" : "表示"}
@@ -186,7 +187,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
             <button
               type="button"
               title={track.muted ? "ミュート解除" : "ミュート"}
-              aria-label={`${track.name}を${track.muted ? "ミュート解除" : "ミュート"}する`}
+              aria-label={track.muted ? `${track.name}のミュートを解除する` : `${track.name}をミュートする`}
               onClick={() => controller.execute({ type: "setTrackMute", trackId: track.id, muted: !track.muted })}
             >
               {track.muted ? "解除" : "消音"}
@@ -213,7 +214,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
           {!isDefault && (
             <button
               type="button"
-              title={track.clips.length ? "空にすると削除できます" : "trackを削除"}
+              title={track.clips.length ? "空にすると削除できます" : "トラックを削除"}
               aria-label={`${track.name}を削除`}
               disabled={track.clips.length > 0}
               onClick={() => controller.execute({ type: "removeTrack", trackId: track.id })}
@@ -227,10 +228,10 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
   return (
     <div className="timeline-editor">
       <div className="timeline-toolbar">
-        <p>右クリックで速度・フェード・移動先trackを変更できます。</p>
+        <p>⌘K / Ctrl+Kで分割、Shift+Dでディゾルブ。右クリックで速度・フェード・移動先を変更できます。</p>
         <div className="timeline-toolbar-actions">
-          <button type="button" onClick={() => addTrack("video")}>+ Video</button>
-          <button type="button" onClick={() => addTrack("audio")}>+ Audio</button>
+          <button type="button" onClick={() => addTrack("video")}>＋動画</button>
+          <button type="button" onClick={() => addTrack("audio")}>＋音声</button>
           <label>
             表示幅
             <select
@@ -247,7 +248,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
 
       <div className="timeline-workspace">
         <div className="timeline-sidebar">
-          <div className="timeline-corner">TRACK / TIME</div>
+          <div className="timeline-corner">トラック / 時間</div>
           {rows.map(renderTrackControls)}
         </div>
 
@@ -375,7 +376,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
           onContextMenu={(event) => event.preventDefault()}
         >
           <label>
-            Video track
+            動画トラック
             <select
               value={menuLocation.track.id}
               onChange={(event) => {
@@ -436,7 +437,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
               ))}
             </select>
           </label>
-          <small>速度・fadeはclip単位。track移動ではsource rangeを保持。</small>
+          <small>速度とフェードはクリップ単位です。トラックを移動しても素材範囲は維持されます。</small>
         </div>
       )}
     </div>

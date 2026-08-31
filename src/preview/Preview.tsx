@@ -16,6 +16,7 @@ import {
 import type { MediaRuntime } from "../media/runtime";
 
 const US = 1_000_000;
+const PREVIEW_MAX_HEIGHT = 450;
 
 type Props = {
   state: EditorState;
@@ -232,7 +233,7 @@ export function Preview({ state, controller, runtime }: Props) {
         aria-label={`${state.canvas.width}×${state.canvas.height} 動画プレビュー`}
         style={{
           aspectRatio: `${state.canvas.width} / ${state.canvas.height}`,
-          width: `min(100%, ${Math.round(canvasRatio * 560)}px)`,
+          width: `min(100%, ${Math.round(canvasRatio * PREVIEW_MAX_HEIGHT)}px)`,
         }}
       >
         {activeVideoLayers.map(({ track, clip }) => (
