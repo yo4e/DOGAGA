@@ -256,6 +256,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
                 )}
               </button>
               <input
+                name={`track-opacity-${track.id}`}
                 aria-label={`${track.name} opacity`}
                 title={`${track.name} opacity ${Math.round(track.opacity * 100)}%`}
                 type="range"
@@ -285,6 +286,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
                 )}
               </button>
               <input
+                name={`track-volume-${track.id}`}
                 className="track-volume"
                 aria-label={`${track.name} volume`}
                 title={audioClip ? `${track.name} volume ${Math.round(audioClip.volume * 100)}%` : `Add audio to ${track.name} to set volume`}
@@ -347,6 +349,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
           <label>
             Scale
             <select
+              name="timeline-scale"
               value={pixelsPerSecond}
               onChange={(event) => setPixelsPerSecond(Number(event.target.value) as (typeof SCALE_OPTIONS)[number])}
             >
@@ -578,6 +581,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
           <label>
             Video track
             <select
+              name={`clip-track-${menuClip.id}`}
               value={menuLocation.track.id}
               onChange={(event) => {
                 controller.execute({ type: "moveClipToTrack", clipId: menuClip.id, trackId: event.target.value });
@@ -592,6 +596,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
           <label>
             Playback speed
             <select
+              name={`clip-speed-${menuClip.id}`}
               autoFocus
               value={menuClip.playbackRate}
               onChange={(event) => controller.execute({
@@ -608,6 +613,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
           <label>
             Fade in
             <select
+              name={`clip-fade-in-${menuClip.id}`}
               value={menuClip.fadeInUs}
               onChange={(event) => controller.execute({
                 type: "setClipFade",
@@ -624,6 +630,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
           <label>
             Fade out
             <select
+              name={`clip-fade-out-${menuClip.id}`}
               value={menuClip.fadeOutUs}
               onChange={(event) => controller.execute({
                 type: "setClipFade",
