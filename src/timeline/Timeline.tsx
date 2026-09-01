@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import type { EditorController } from "../editor/controller";
@@ -77,6 +78,8 @@ function fadeLabel(durationUs: number): string {
 export function Timeline({ state, controller, selectedClipId, onSelectClip }: Props) {
   const [pixelsPerSecond, setPixelsPerSecond] = useState<(typeof SCALE_OPTIONS)[number]>(24);
   const [clipMenu, setClipMenu] = useState<ClipMenu | null>(null);
+  const [draggedClipId, setDraggedClipId] = useState<string | null>(null);
+  const [dragOverTrackId, setDragOverTrackId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const videoTracks = useMemo(() => getVideoTracks(state), [state.tracks]);
   const audioTracks = useMemo(() => getAudioTracks(state), [state.tracks]);
@@ -169,11 +172,49 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
     });
   };
 
+  const finishDrag = () => {
+    setDraggedClipId(null);
+    setDragOverTrackId(null);
+  };
+
+  const dropDraggedClip = (
+    event: ReactDragEvent<HTMLElement>,
+    targetTrack: VideoTrack,
+    insertionIndex: number,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const clipId = draggedClipId || event.dataTransfer.getData("text/plain");
+    const location = clipId ? findVideoClipLocation(state, clipId) : null;
+    if (!clipId || !location) {
+      finishDrag();
+      return;
+    }
+
+    if (location.track.id === targetTrack.id) {
+      let toIndex = Math.max(0, Math.min(targetTrack.clips.length, insertionIndex));
+      if (location.clipIndex < toIndex) toIndex -= 1;
+      toIndex = Math.max(0, Math.min(targetTrack.clips.length - 1, toIndex));
+      if (toIndex !== location.clipIndex) {
+        controller.execute({ type: "moveClip", clipId, toIndex });
+      }
+    } else {
+      const toIndex = Math.max(0, Math.min(targetTrack.clips.length, insertionIndex));
+      controller.execute({ type: "moveClipToTrack", clipId, trackId: targetTrack.id, toIndex });
+    }
+
+    onSelectClip(clipId);
+    finishDrag();
+  };
+
   const renderTrackControls = (track: EditorTrack) => {
     const sameKind = track.kind === "video" ? videoTracks : audioTracks;
     const upIndex = getTimelineTrackMoveIndex(track, sameKind, "up");
     const downIndex = getTimelineTrackMoveIndex(track, sameKind, "down");
     const isDefault = track.id === DEFAULT_VIDEO_TRACK_ID || track.id === DEFAULT_AUDIO_TRACK_ID;
+    const audioClip = track.kind === "audio" ? track.clips[0] ?? null : null;
+
     return (
       <div className="track-label" key={track.id}>
         <div className="track-label-title">
@@ -211,18 +252,39 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
               />
             </>
           ) : (
-            <button
-              type="button"
-              title={track.muted ? "Unmute" : "Mute"}
-              aria-label={track.muted ? `Unmute ${track.name}` : `Mute ${track.name}`}
-              onClick={() => controller.execute({ type: "setTrackMute", trackId: track.id, muted: !track.muted })}
-            >
-              {track.muted ? (
-                <SpeakerSlashIcon size={16} weight="regular" aria-hidden="true" />
-              ) : (
-                <SpeakerHighIcon size={16} weight="regular" aria-hidden="true" />
-              )}
-            </button>
+            <>
+              <button
+                type="button"
+                title={track.muted ? "Unmute" : "Mute"}
+                aria-label={track.muted ? `Unmute ${track.name}` : `Mute ${track.name}`}
+                onClick={() => controller.execute({ type: "setTrackMute", trackId: track.id, muted: !track.muted })}
+              >
+                {track.muted ? (
+                  <SpeakerSlashIcon size={16} weight="regular" aria-hidden="true" />
+                ) : (
+                  <SpeakerHighIcon size={16} weight="regular" aria-hidden="true" />
+                )}
+              </button>
+              <input
+                className="track-volume"
+                aria-label={`${track.name} volume`}
+                title={audioClip ? `${track.name} volume ${Math.round(audioClip.volume * 100)}%` : `Add audio to ${track.name} to set volume`}
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={audioClip?.volume ?? 0}
+                disabled={!audioClip}
+                onChange={(event) => {
+                  if (!audioClip) return;
+                  controller.execute({
+                    type: "setAudio",
+                    trackId: track.id,
+                    audio: { ...audioClip, volume: Number(event.target.value) },
+                  });
+                }}
+              />
+            </>
           )}
           <button
             type="button"
@@ -301,12 +363,20 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
             {rows.map((track, rowIndex) => {
               const top = RULER_HEIGHT + rowIndex * TRACK_HEIGHT;
               if (track.kind === "video") {
+                const dragOver = dragOverTrackId === track.id && draggedClipId !== null;
                 return (
                   <div
-                    className={`timeline-lane video-lane${track.visible ? "" : " track-disabled"}`}
+                    className={`timeline-lane video-lane${track.visible ? "" : " track-disabled"}${dragOver ? " drag-over" : ""}`}
                     key={track.id}
                     style={{ top }}
                     onClick={seekFromClick}
+                    onDragOver={(event) => {
+                      if (!draggedClipId) return;
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                      setDragOverTrackId(track.id);
+                    }}
+                    onDrop={(event) => dropDraggedClip(event, track, track.clips.length)}
                   >
                     {track.clips.map((clip, index) => {
                       const asset = state.assets.find((candidate) => candidate.id === clip.assetId);
@@ -314,10 +384,11 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
                       return (
                         <button
                           type="button"
-                          className={`timeline-clip${selectedClipId === clip.id ? " selected" : ""}`}
+                          draggable
+                          className={`timeline-clip${selectedClipId === clip.id ? " selected" : ""}${draggedClipId === clip.id ? " dragging" : ""}`}
                           key={clip.id}
                           aria-pressed={selectedClipId === clip.id}
-                          title={`${asset?.name ?? clip.assetId} · ${(clipDuration / US).toFixed(2)}s · ${clip.playbackRate}× · fade ${fadeLabel(clip.fadeInUs)} / ${fadeLabel(clip.fadeOutUs)}`}
+                          title={`${asset?.name ?? clip.assetId} · ${(clipDuration / US).toFixed(2)}s · ${clip.playbackRate}× · fade ${fadeLabel(clip.fadeInUs)} / ${fadeLabel(clip.fadeOutUs)} · drag to reorder or move tracks`}
                           style={{
                             left: (clip.timelineStartUs / US) * pixelsPerSecond,
                             width: Math.max(28, (clipDuration / US) * pixelsPerSecond),
@@ -327,6 +398,27 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
                             event.stopPropagation();
                             onSelectClip(clip.id);
                           }}
+                          onDragStart={(event) => {
+                            event.stopPropagation();
+                            setClipMenu(null);
+                            setDraggedClipId(clip.id);
+                            setDragOverTrackId(track.id);
+                            event.dataTransfer.effectAllowed = "move";
+                            event.dataTransfer.setData("text/plain", clip.id);
+                          }}
+                          onDragOver={(event) => {
+                            if (!draggedClipId) return;
+                            event.preventDefault();
+                            event.stopPropagation();
+                            event.dataTransfer.dropEffect = "move";
+                            setDragOverTrackId(track.id);
+                          }}
+                          onDrop={(event) => {
+                            const rect = event.currentTarget.getBoundingClientRect();
+                            const after = event.clientX >= rect.left + rect.width / 2;
+                            dropDraggedClip(event, track, index + (after ? 1 : 0));
+                          }}
+                          onDragEnd={finishDrag}
                           onContextMenu={(event) => {
                             event.preventDefault();
                             event.stopPropagation();
@@ -344,7 +436,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
                       );
                     })}
                     {!track.clips.length && (
-                      <span className="track-empty">Add video clips here ({track.name})</span>
+                      <span className="track-empty">Add or drop video clips here ({track.name})</span>
                     )}
                     {state.transitions.map((transition) => {
                       const toClip = track.clips.find((clip) => clip.id === transition.toClipId);
@@ -401,7 +493,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
         </div>
       </div>
 
-      <p className="timeline-help">Space to play/pause, ⌘K / Ctrl+K to split, Shift+D to toggle a dissolve. Right-click a clip to change speed, fades, or its target track.</p>
+      <p className="timeline-help">Space to play/pause, drag clips to reorder or move between video tracks, ⌘K / Ctrl+K to split, Shift+D to toggle a dissolve. Right-click a clip for speed, fades, or track selection.</p>
 
       {clipMenu && menuClip && menuLocation && (
         <div
