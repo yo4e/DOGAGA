@@ -19,3 +19,8 @@ export function resolveClipDropIndex({
     : boundedInsertion;
   return Math.max(0, Math.min(Math.max(0, targetLength - 1), withoutSource));
 }
+
+export function resolvePointerInsertionIndex(pointerX: number, clipMidpoints: number[]): number {
+  const beforeIndex = clipMidpoints.findIndex((midpoint) => pointerX < midpoint);
+  return beforeIndex === -1 ? clipMidpoints.length : beforeIndex;
+}

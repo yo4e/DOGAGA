@@ -26,6 +26,7 @@ import {
 } from "../editor/model";
 import type { MediaRuntime } from "../media/runtime";
 import { playbackPositionUs, type PlaybackClock } from "./playbackClock";
+import { isSpaceShortcut } from "./shortcut";
 
 const US = 1_000_000;
 const MEDIA_SYNC_TOLERANCE_SECONDS = 0.05;
@@ -130,6 +131,7 @@ function clockLabel(us: number): string {
 function isPlaybackShortcutTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   if (target.isContentEditable) return true;
+  if (target.closest("[data-playback-shortcut-surface]")) return false;
   return target.closest("input, select, textarea, button, a, summary, [role='button']") !== null;
 }
 
@@ -309,7 +311,7 @@ export function Preview({ state, controller, runtime }: Props) {
       if (
         event.defaultPrevented
         || event.repeat
-        || event.code !== "Space"
+        || !isSpaceShortcut(event)
         || event.metaKey
         || event.ctrlKey
         || event.altKey
@@ -321,8 +323,8 @@ export function Preview({ state, controller, runtime }: Props) {
       editorRef.current?.querySelector<HTMLButtonElement>(".transport-play")?.click();
     };
 
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("keydown", onKeyDown, { capture: true });
+    return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
   }, []);
 
   return (

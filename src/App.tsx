@@ -47,9 +47,9 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [activities, setActivities] = useState<AgentActivity[]>([]);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
   const [videoTargetTrackId, setVideoTargetTrackId] = useState<string | null>(null);
   const [audioTargetTrackId, setAudioTargetTrackId] = useState<string | null>(null);
-  const [dragActive, setDragActive] = useState(false);
   const videoClips = useMemo(() => allVideoClips(state), [state.tracks]);
   const videoTracks = useMemo(() => getVideoTracks(state), [state.tracks]);
   const audioTracks = useMemo(() => getAudioTracks(state), [state.tracks]);
@@ -208,7 +208,6 @@ function App() {
     : undefined;
   const videoTargetTrack = videoTracks.find((track) => track.id === videoTargetTrackId) ?? videoTracks[0] ?? null;
   const audioTargetTrack = audioTracks.find((track) => track.id === audioTargetTrackId) ?? audioTracks[0] ?? null;
-
   const splitSelectedClip = (): boolean => {
     if (!selectedClip) return false;
     const newClipId = newId("clip");
@@ -448,6 +447,22 @@ function App() {
               </span>
             </div>
             <div className="button-row inspector-actions">
+              <label className="inspector-track-select">
+                Video track
+                <select
+                  name={`selected-clip-track-${selectedClip.id}`}
+                  value={selectedTrack.id}
+                  onChange={(event) => run(() => controller.execute({
+                    type: "moveClipToTrack",
+                    clipId: selectedClip.id,
+                    trackId: event.target.value,
+                  }))}
+                >
+                  {videoTracks.map((track) => (
+                    <option key={track.id} value={track.id}>{track.name}</option>
+                  ))}
+                </select>
+              </label>
               <button
                 type="button"
                 disabled={selectedIndex === 0}
