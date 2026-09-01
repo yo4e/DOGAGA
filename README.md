@@ -110,6 +110,8 @@ The agent-safe state does not include:
 - object URLs
 - local filesystem information
 
+See [Privacy and local-data boundary](docs/PRIVACY_AND_DATA_BOUNDARY.md) for the current technical data boundary.
+
 ## Browser support
 
 - Desktop Chrome is the primary reference environment for the manual editor, Preview, and Export
@@ -176,16 +178,15 @@ The long-term goal is a browser-only workflow that can handle:
 
 DOGAGA is not intended to become an all-purpose professional editor. The goal is a small editor with enough power for music-centered video work.
 
-## Current design and submission documents
+## Documentation for reviewers
 
-The documents most relevant to the current public build and Challenge review are:
+For the current public build and WebMCP Challenge evaluation, use these English documents:
 
-- [Product vision](docs/PRODUCT_VISION.md)
-- [Development roadmap](docs/DEVELOPMENT_ROADMAP.md)
-- [WebMCP compact-v0 implementation plan](docs/WEBMCP_MVP_IMPLEMENTATION_PLAN.md)
+- [Documentation guide](docs/README.md)
+- [Current architecture](docs/ARCHITECTURE.md)
 - [WebMCP browser compatibility](docs/WEBMCP_BROWSER_COMPATIBILITY.md)
-- [Rights and data policy](docs/RIGHTS_AND_DATA_POLICY.md)
+- [Privacy and local-data boundary](docs/PRIVACY_AND_DATA_BOUNDARY.md)
 - [Devpost submission draft](docs/DEVPOST_SUBMISSION_DRAFT.md)
 - [Challenge demo video script](docs/CHALLENGE_DEMO_VIDEO_SCRIPT.md)
 
-The repository also retains older architecture notes, research, Japanese-first terminology guidance, project-format experiments, codec research, and implementation work notes as historical/internal development material. Those files are not the primary documentation for evaluating the current public build.
+The repository intentionally retains older Japanese design notes, research, ADRs, and Issue history as development history. Some of those files describe earlier stages or future features and are not the primary documentation for the current submitted build.
