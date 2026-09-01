@@ -10,10 +10,10 @@ export const DEFAULT_VIDEO_TRACK_ID = "video-1";
 export const DEFAULT_AUDIO_TRACK_ID = "audio-1";
 
 export const CANVAS_PRESETS = {
-  landscape: { label: "横 16:9", width: 1920, height: 1080 },
-  portrait: { label: "縦 9:16", width: 1080, height: 1920 },
-  square: { label: "正方形 1:1", width: 1080, height: 1080 },
-  portraitFourFive: { label: "縦 4:5", width: 1080, height: 1350 },
+  landscape: { label: "Landscape 16:9", width: 1920, height: 1080 },
+  portrait: { label: "Portrait 9:16", width: 1080, height: 1920 },
+  square: { label: "Square 1:1", width: 1080, height: 1080 },
+  portraitFourFive: { label: "Portrait 4:5", width: 1080, height: 1350 },
 } as const;
 
 export const PLAYBACK_RATES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2] as const;

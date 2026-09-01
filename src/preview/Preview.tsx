@@ -284,7 +284,7 @@ export function Preview({ state, controller, runtime }: Props) {
       <div className="preview-monitor">
         <div
           className="preview-stage"
-          aria-label={`${state.canvas.width}×${state.canvas.height} 動画プレビュー`}
+          aria-label={`${state.canvas.width}×${state.canvas.height} video preview`}
           style={{
             aspectRatio: `${state.canvas.width} / ${state.canvas.height}`,
           }}
@@ -302,13 +302,13 @@ export function Preview({ state, controller, runtime }: Props) {
           {!activeVideoLayers.length && (
             <div className="preview-empty">
               <FilmStripIcon className="preview-empty-icon" size={42} weight="light" aria-hidden="true" />
-              <strong>{allVideos.length ? "再生位置に表示中の映像がありません" : "動画をタイムラインへ追加してください"}</strong>
+              <strong>{allVideos.length ? "No video is visible at the current playhead" : "Add a video clip to the timeline"}</strong>
             </div>
           )}
         </div>
         <input
           className="preview-scrubber"
-          aria-label="再生位置"
+          aria-label="Playhead position"
           type="range"
           min="0"
           max={Math.max(0, durationUs)}
@@ -338,18 +338,18 @@ export function Preview({ state, controller, runtime }: Props) {
 
       <div className="transport">
         <span className="transport-time">{clockLabel(state.playheadUs)} / {clockLabel(durationUs)}</span>
-        <div className="transport-controls" role="group" aria-label="再生コントロール">
-          <button type="button" title="先頭へ" aria-label="先頭へ" disabled={durationUs <= 0} onClick={() => seek(0)}>
+        <div className="transport-controls" role="group" aria-label="Playback controls">
+          <button type="button" title="Go to start" aria-label="Go to start" disabled={durationUs <= 0} onClick={() => seek(0)}>
             <SkipBackIcon size={17} weight="regular" aria-hidden="true" />
           </button>
-          <button type="button" title="0.1秒戻る" aria-label="0.1秒戻る" disabled={durationUs <= 0} onClick={() => seekBy(-100_000)}>
+          <button type="button" title="Back 0.1 seconds" aria-label="Back 0.1 seconds" disabled={durationUs <= 0} onClick={() => seekBy(-100_000)}>
             <CaretLeftIcon size={16} weight="fill" aria-hidden="true" />
           </button>
           <button
             className="transport-play"
             type="button"
-            title={playing ? "一時停止" : "再生"}
-            aria-label={playing ? "一時停止" : "再生"}
+            title={playing ? "Pause" : "Play"}
+            aria-label={playing ? "Pause" : "Play"}
             aria-pressed={playing}
             onClick={togglePlayback}
             disabled={durationUs <= 0}
@@ -360,18 +360,18 @@ export function Preview({ state, controller, runtime }: Props) {
               <PlayIcon size={19} weight="fill" aria-hidden="true" />
             )}
           </button>
-          <button type="button" title="0.1秒進む" aria-label="0.1秒進む" disabled={durationUs <= 0} onClick={() => seekBy(100_000)}>
+          <button type="button" title="Forward 0.1 seconds" aria-label="Forward 0.1 seconds" disabled={durationUs <= 0} onClick={() => seekBy(100_000)}>
             <CaretRightIcon size={16} weight="fill" aria-hidden="true" />
           </button>
-          <button type="button" title="末尾へ" aria-label="末尾へ" disabled={durationUs <= 0} onClick={() => seek(durationUs)}>
+          <button type="button" title="Go to end" aria-label="Go to end" disabled={durationUs <= 0} onClick={() => seek(durationUs)}>
             <SkipForwardIcon size={17} weight="regular" aria-hidden="true" />
           </button>
         </div>
         <div className="transport-end">
           <button
             type="button"
-            title={masterVolume > 0 ? "プレビュー音声をミュート" : "プレビュー音声のミュートを解除"}
-            aria-label={masterVolume > 0 ? "プレビュー音声をミュート" : "プレビュー音声のミュートを解除"}
+            title={masterVolume > 0 ? "Mute preview audio" : "Unmute preview audio"}
+            aria-label={masterVolume > 0 ? "Mute preview audio" : "Unmute preview audio"}
             aria-pressed={masterVolume === 0}
             onClick={toggleMasterMute}
           >
@@ -382,7 +382,7 @@ export function Preview({ state, controller, runtime }: Props) {
             )}
           </button>
           <input
-            aria-label="プレビュー音量"
+            aria-label="Preview volume"
             type="range"
             min="0"
             max="1"
@@ -392,8 +392,8 @@ export function Preview({ state, controller, runtime }: Props) {
           />
           <button
             type="button"
-            title={fullscreen ? "全画面表示を終了" : "プレビューを全画面表示"}
-            aria-label={fullscreen ? "全画面表示を終了" : "プレビューを全画面表示"}
+            title={fullscreen ? "Exit fullscreen" : "Show preview fullscreen"}
+            aria-label={fullscreen ? "Exit fullscreen" : "Show preview fullscreen"}
             disabled={!document.fullscreenEnabled}
             onClick={toggleFullscreen}
           >

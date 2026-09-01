@@ -132,7 +132,7 @@ function App() {
     for (const file of Array.from(files)) {
       const kind = inferAssetKind(file);
       if (kind) entries.push({ file, kind });
-      else unsupported.push(`${file.name}: 対応する動画・音声ファイルではありません`);
+      else unsupported.push(`${file.name}: Unsupported video or audio file`);
     }
     await registerMediaFiles(entries, unsupported);
   };
@@ -273,14 +273,14 @@ function App() {
         <div className="app-bar-primary">
           <div className="brand-lockup">
             <h1 className="app-logo">DOGAGA</h1>
-            <span className="app-tagline">コンパクト WebMCP 動画エディタ</span>
+            <span className="app-tagline">Compact WebMCP video editor</span>
           </div>
           <WebMCPTools controller={controller} onActivity={recordActivity} />
         </div>
         <div className="app-bar-tools">
-          <div className="app-bar-canvas" aria-label="動画の表示設定">
+          <div className="app-bar-canvas" aria-label="Video display settings">
             <label>
-              動画サイズ
+              Canvas
               <select
                 value={state.canvas.preset}
                 onChange={(event) => setCanvas(event.target.value as CanvasPresetId, state.canvas.fitMode)}
@@ -291,34 +291,34 @@ function App() {
               </select>
             </label>
             <label>
-              素材の表示
+              Source fit
               <select
                 value={state.canvas.fitMode}
                 onChange={(event) => setCanvas(state.canvas.preset, event.target.value as CanvasFitMode)}
               >
-                <option value="contain">全体を表示</option>
-                <option value="cover">画面いっぱい</option>
+                <option value="contain">Contain</option>
+                <option value="cover">Cover</option>
               </select>
             </label>
           </div>
-          <a className="export-shortcut" href="#export">書き出し</a>
+          <a className="export-shortcut" href="#export">Export</a>
         </div>
       </header>
 
       <div className="editor-workspace">
         <section className="panel media-panel media-rail">
-          <h2>素材</h2>
+          <h2>Media</h2>
           <div className="file-row">
             <label>
-              動画を選択
+              Select video
               <input type="file" accept="video/*" multiple onChange={(event) => void loadFiles(event.target.files, "video")} />
             </label>
             <label>
-              音源を選択
+              Select audio
               <input type="file" accept="audio/*" onChange={(event) => void loadFiles(event.target.files, "audio")} />
             </label>
             <label>
-              動画の追加先
+              Video target
               <select
                 value={videoTargetTrack?.id ?? ""}
                 onChange={(event) => setVideoTargetTrackId(event.target.value)}
@@ -329,7 +329,7 @@ function App() {
               </select>
             </label>
             <label>
-              音声の追加先
+              Audio target
               <select
                 value={audioTargetTrack?.id ?? ""}
                 onChange={(event) => setAudioTargetTrackId(event.target.value)}
@@ -342,7 +342,7 @@ function App() {
           </div>
           <div
             className={`media-dropzone${dragActive ? " drag-active" : ""}`}
-            aria-label="動画または音声ファイルのドロップ領域"
+            aria-label="Video or audio file drop zone"
             onDragEnter={(event) => {
               if (!Array.from(event.dataTransfer.types).includes("Files")) return;
               event.preventDefault();
@@ -359,8 +359,8 @@ function App() {
             }}
             onDrop={onMediaDrop}
           >
-            <strong>{loading ? "メディア情報を読み込み中…" : "ここにファイルをドラッグ＆ドロップ"}</strong>
-            <span>対応形式の例: WebM、MP4、MP3、WAV</span>
+            <strong>{loading ? "Reading media metadata…" : "Drag & drop files here"}</strong>
+            <span>Examples: WebM, MP4, MP3, WAV</span>
           </div>
           <div className="asset-list">
             {state.assets.map((asset) => (
@@ -371,22 +371,22 @@ function App() {
                 </div>
                 {asset.kind === "video" ? (
                   <button type="button" onClick={() => addVideo(asset.id, videoTargetTrack?.id)}>
-                    {videoTargetTrack?.name ?? "V1"}末尾へ
+                    Add to end of {videoTargetTrack?.name ?? "V1"}
                   </button>
                 ) : (
                   <button type="button" onClick={() => setAudioTrack(asset.id, audioTargetTrack?.id)}>
-                    {audioTargetTrack?.name ?? "A1"}に設定
+                    Set on {audioTargetTrack?.name ?? "A1"}
                   </button>
                 )}
               </div>
             ))}
-            {!state.assets.length && <p className="muted">まだ素材は読み込まれていません。</p>}
+            {!state.assets.length && <p className="muted">No media loaded yet.</p>}
           </div>
         </section>
 
         <section className="panel preview-panel preview-main">
           <div className="panel-heading">
-            <h2>プレビュー</h2>
+            <h2>Preview</h2>
             <span className="canvas-resolution">{state.canvas.width} × {state.canvas.height}</span>
           </div>
           <Preview state={state} controller={controller} runtime={runtime} />
@@ -404,12 +404,12 @@ function App() {
         {selectedClip && selectedTrack ? (
           <div className="clip-inspector">
             <div className="inspector-summary">
-              <small>選択中のクリップ · {selectedTrack.name}</small>
+              <small>Selected clip · {selectedTrack.name}</small>
               <strong>{state.assets.find((asset) => asset.id === selectedClip.assetId)?.name ?? selectedClip.assetId}</strong>
               <span>
                 {seconds(selectedClip.timelineStartUs)}s → {seconds(selectedClip.timelineStartUs + clipDurationUs(selectedClip))}s
-                ・素材 {seconds(selectedClip.sourceInUs)}–{seconds(selectedClip.sourceOutUs)}s
-                ・速度 {selectedClip.playbackRate}×
+                · Source {seconds(selectedClip.sourceInUs)}–{seconds(selectedClip.sourceOutUs)}s
+                · Speed {selectedClip.playbackRate}×
               </span>
             </div>
             <div className="button-row inspector-actions">
@@ -417,16 +417,16 @@ function App() {
                 type="button"
                 disabled={selectedIndex === 0}
                 onClick={() => run(() => controller.execute({ type: "moveClip", clipId: selectedClip.id, toIndex: selectedIndex - 1 }))}
-              >前へ移動</button>
+              >Move earlier</button>
               <button
                 type="button"
                 disabled={selectedIndex === selectedTrack.clips.length - 1}
                 onClick={() => run(() => controller.execute({ type: "moveClip", clipId: selectedClip.id, toIndex: selectedIndex + 1 }))}
-              >後ろへ移動</button>
-              <button type="button" onClick={splitSelectedClip}>再生ヘッドで分割</button>
-              <button type="button" onClick={() => trim(selectedClip, "in")}>開始を0.1秒カット</button>
-              <button type="button" onClick={() => trim(selectedClip, "out")}>終了を0.1秒カット</button>
-              <button className="danger-button" type="button" onClick={() => run(() => controller.execute({ type: "deleteClip", clipId: selectedClip.id }))}>削除</button>
+              >Move later</button>
+              <button type="button" onClick={splitSelectedClip}>Split at playhead</button>
+              <button type="button" onClick={() => trim(selectedClip, "in")}>Trim 0.1s from start</button>
+              <button type="button" onClick={() => trim(selectedClip, "out")}>Trim 0.1s from end</button>
+              <button className="danger-button" type="button" onClick={() => run(() => controller.execute({ type: "deleteClip", clipId: selectedClip.id }))}>Delete</button>
             </div>
             {nextClip && (
               selectedTransition ? (
@@ -434,32 +434,32 @@ function App() {
                   type="button"
                   className="transition-button active"
                   onClick={toggleSelectedDissolve}
-                >次のクリップとの0.5秒ディゾルブを外す（Shift+D）</button>
+                >Remove 0.5s dissolve to next clip (Shift+D)</button>
               ) : (
                 <button
                   type="button"
                   className="transition-button"
                   onClick={toggleSelectedDissolve}
-                >次のクリップとの境界に0.5秒ディゾルブ（Shift+D）</button>
+                >Add 0.5s dissolve to next clip (Shift+D)</button>
               )
             )}
           </div>
         ) : (
-          <p className="muted inspector-empty">動画クリップを選択すると、移動・カット・削除・ディゾルブ操作が表示されます。</p>
+          <p className="muted inspector-empty">Select a video clip to show move, trim, delete, and dissolve controls.</p>
         )}
 
         {audioTracks.map((track) => {
           const clip = track.clips[0] ?? null;
           return (
             <div className="audio-strip" key={track.id}>
-              <strong>{track.name} 音声</strong>
+              <strong>{track.name} audio</strong>
               {clip ? (
                 <>
                   <span>{state.assets.find((asset) => asset.id === clip.assetId)?.name}</span>
                   <label>
                     Start (s)
                     <input
-                      aria-label={`${track.name}の開始位置（秒）`}
+                      aria-label={`${track.name} start position in seconds`}
                       type="number"
                       min="0"
                       step="0.1"
@@ -477,7 +477,7 @@ function App() {
                   <label>
                     Volume
                     <input
-                      aria-label={`${track.name}の音量`}
+                      aria-label={`${track.name} volume`}
                       type="range"
                       min="0"
                       max="1"
@@ -492,15 +492,15 @@ function App() {
                   </label>
                   <button
                     type="button"
-                    aria-label={`${track.name}の音源を解除`}
+                    aria-label={`Remove audio from ${track.name}`}
                     onClick={() => run(() => controller.execute({ type: "setAudio", trackId: track.id, audio: null }))}
-                  >音源解除</button>
+                  >Remove audio</button>
                 </>
               ) : (
                 <label>
-                  音源を設定
+                  Set audio
                   <select
-                    aria-label={`${track.name}に設定する音源`}
+                    aria-label={`Audio source for ${track.name}`}
                     defaultValue=""
                     onChange={(event) => {
                       const assetId = event.target.value;
@@ -508,14 +508,14 @@ function App() {
                       event.currentTarget.value = "";
                     }}
                   >
-                    <option value="" disabled>選択…</option>
+                    <option value="" disabled>Select…</option>
                     {state.assets.filter((asset) => asset.kind === "audio").map((asset) => (
                       <option key={asset.id} value={asset.id}>{asset.name}</option>
                     ))}
                   </select>
                 </label>
               )}
-              {track.muted && <span className="muted">ミュート中</span>}
+              {track.muted && <span className="muted">Muted</span>}
             </div>
           );
         })}
@@ -527,27 +527,27 @@ function App() {
 
       <details className="developer-details">
         <summary>
-          <span>WebMCP・開発者情報</span>
-          <small>エージェントの実行履歴と安全な状態を確認</small>
+          <span>WebMCP & developer details</span>
+          <small>Inspect agent activity and the agent-safe shared state</small>
         </summary>
         <div className="developer-content">
           <section className="panel agent-panel">
-            <h2>エージェントの実行履歴</h2>
+            <h2>Agent activity</h2>
             <div className="activity-list" aria-live="polite">
               {activities.map((activity) => (
                 <div className={`activity-item ${activity.status}`} key={activity.id}>
                   <strong>Agent: {activity.tool}</strong>
-                  <span>{activity.status === "success" ? "成功" : "エラー"}</span>
+                  <span>{activity.status === "success" ? "Success" : "Error"}</span>
                   <small>{activity.message}</small>
                 </div>
               ))}
-              {!activities.length && <p className="muted">エージェントからツールが実行されると、ここに履歴が表示されます。</p>}
+              {!activities.length && <p className="muted">Agent tool calls will appear here.</p>}
             </div>
           </section>
 
           <section className="panel state-panel">
-            <h2>エージェントに共有する状態</h2>
-            <p className="muted">WebMCPの `get_project_state` が返す安全な情報です。ファイル、パス、オブジェクトURLは含みません。</p>
+            <h2>State shared with the agent</h2>
+            <p className="muted">This is the agent-safe state returned by WebMCP `get_project_state`. It never includes local files, filesystem paths, or object URLs.</p>
             <pre>{JSON.stringify(controller.getSafeState(), null, 2)}</pre>
           </section>
         </div>

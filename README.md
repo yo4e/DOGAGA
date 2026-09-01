@@ -1,75 +1,75 @@
-# DOGAGA（どーがが）
+# DOGAGA
 
-DOGAGAは、**パソコンのブラウザで動く、軽量・ローカルファーストの動画編集Webアプリ**です。
+DOGAGA is a **lightweight, local-first video editor that runs in a desktop browser**.
 
-Premiere Proのような総合編集ソフトを再現するのではなく、MV、PV、ショート動画、歌詞動画、Spotify Canvasなどを、軽く・速く・迷わず作れる小型編集機を目指しています。
+Rather than recreating a full professional NLE such as Premiere Pro, DOGAGA aims to be a compact editor for making music videos, promotional videos, short-form clips, lyric videos, Spotify Canvas loops, and similar small projects quickly and without unnecessary complexity.
 
-現在は、WebMCP Challenge 2026の締切を開発加速の機会として使いながら、Challenge専用demoではなく**compact production v0**を実装しています。
+The WebMCP Challenge 2026 is being used as a development accelerator, but DOGAGA is not a challenge-only demo. The public app is the evolving **compact production v0**.
 
-## 公開版
+## Public build
 
 - Live app: https://dogaga.pages.dev
 - Repository: https://github.com/yo4e/DOGAGA
 - License: MIT
 
-公開版はCloudflare Pagesで配信しています。Production branchは `main` です。
+The public build is deployed on Cloudflare Pages from the `main` branch.
 
-## 現在できること
+## Current capabilities
 
-### 編集
+### Editing
 
-- local video / audioの読み込み
-- 複数video track（V1 / V2 / ...）+ 複数audio track（A1 / A2 / ...）
-- video / audio trackの追加・並べ替え
-- video trackの表示/非表示・opacity
-- audio trackのmute
-- video clipを別video trackへ移動
-- clip追加・並べ替え・trim・削除
-- 再生ヘッド位置でのclip分割
-- `⌘K` / `Ctrl+K` で選択clipを再生ヘッド位置で分割
-- `Shift+D` で同一track上の選択clipと次clipの0.5秒cross dissolveを切替
-- clip右クリックで再生速度変更（0.25× / 0.5× / 0.75× / 1× / 1.25× / 1.5× / 2×）
-- clip右クリックでfade in / fade out（なし / 0.25秒 / 0.5秒 / 1秒 / 2秒）
-- audio start / volume / remove
-- cross dissolve追加・削除
-- 実時間に比例したmulti-track timeline表示
-- 再生ヘッド / timeline seek
-- timeline表示倍率
+- Load local video and audio files
+- Multiple video tracks (V1 / V2 / ...) and audio tracks (A1 / A2 / ...)
+- Add and reorder video/audio tracks
+- Toggle video track visibility and set track opacity
+- Mute audio tracks
+- Move a video clip between video tracks
+- Add, reorder, trim, and delete clips
+- Split a clip at the current playhead position
+- `⌘K` / `Ctrl+K` to split the selected clip at the playhead
+- `Shift+D` to toggle a 0.5-second cross-dissolve between the selected clip and the next clip on the same track
+- Change clip playback speed from the context menu (0.25× / 0.5× / 0.75× / 1× / 1.25× / 1.5× / 2×)
+- Set clip fade-in / fade-out from the context menu (none / 0.25s / 0.5s / 1s / 2s)
+- Set audio start position and volume, or remove an audio clip
+- Add and remove cross-dissolves
+- Multi-track timeline scaled to real time
+- Playhead seeking
+- Timeline zoom/density controls
 
 ### Preview
 
-- actual local videoのplay / pause / seek
-- 複数video trackの実合成
-- video track opacity / visibilityの即時反映
-- clip境界を越える再生
-- trim / split / speed / fade / move / deleteの即時反映
-- 複数audio trackの同時再生・mute
-- clip fadeとcross dissolveを同じopacity計算で合成
-- project canvas: 16:9 / 9:16 / 1:1 / 4:5
-- source fit: 全体表示（contain）/ 画面いっぱい（cover）
+- Play, pause, and seek actual local video
+- Composite multiple video tracks
+- Apply video track opacity and visibility immediately
+- Continue playback across clip boundaries
+- Reflect trim, split, speed, fade, move, and delete operations immediately
+- Play multiple audio tracks simultaneously and respect mute state
+- Combine clip fades and cross-dissolves through the same opacity calculation
+- Project canvas presets: 16:9 / 9:16 / 1:1 / 4:5
+- Source fitting: contain / cover
 
-video trackはorderが高いほど上に合成されます。cross dissolveは同一video track内の隣接clip間だけに設定します。
+Higher-order video tracks are rendered above lower-order tracks. Cross-dissolves can only be created between adjacent clips on the same video track.
 
-### 書き出し
+### Export
 
-- 現在の複数video / audio trackをブラウザ内で動画へ書き出し
-- video track order / opacity / visibilityを反映
-- 複数audio trackをWeb Audioでmixし、mute / clip volumeを反映
-- trim / split / playback speed / fade / clip順 / canvas / contain-cover / cross dissolveを反映
-- browser-native `canvas.captureStream()` + Web Audio + MediaRecorder
-- 対応環境ではMP4を優先し、必要に応じてWebMへfallback
-- server uploadなし
-- progress / cancel / download
+- Export the current multi-track video/audio project entirely in the browser
+- Respect video track order, opacity, and visibility
+- Mix multiple audio tracks through Web Audio, including track mute and clip volume
+- Respect trim, split, playback speed, fades, clip order, canvas preset, contain/cover, and cross-dissolves
+- Browser-native `canvas.captureStream()` + Web Audio + MediaRecorder pipeline
+- Prefer MP4 when supported and fall back to WebM when needed
+- No server upload
+- Progress, cancel, and download controls
 
 ### WebMCP
 
-DOGAGAは、現在開いている編集ページ自身がWebMCP toolsを公開します。
+The editing page itself exposes WebMCP tools.
 
-人間UIとbrowser agentは**同じEditor state / 同じcommand executor**を共同操作します。別MCP serverやagent専用timelineは使いません。
+The human UI and the browser agent operate on the **same Editor state and the same command executor**. DOGAGA does not use a separate MCP server or an agent-only timeline.
 
-Editor stateの正本は `tracks[]` です。既存のagent workflowとの互換用に、safe stateではV1/A1由来のlegacy viewも当面返します。
+The canonical editor state is `tracks[]`. For compatibility with earlier agent workflows, the agent-safe state still includes temporary legacy views derived from V1/A1.
 
-現在の20 tools:
+Current 20 tools:
 
 - `get_project_state`
 - `add_track`
@@ -92,41 +92,41 @@ Editor stateの正本は `tracks[]` です。既存のagent workflowとの互換
 - `add_transition`
 - `remove_transition`
 
-既存toolは互換性を維持し、`add_clip` で `trackId` を省略するとV1、`set_audio` / `clear_audio` で省略するとA1を使います。
+Existing tool behavior remains compatible: omitting `trackId` in `add_clip` targets V1, while omitting it in `set_audio` / `clear_audio` targets A1.
 
-WebMCP対応環境では、人間が素材を読み込んだあと、agentがstateを読み、track追加・配置・編集を行い、人間の修正後に再読取して続きを編集できます。
+In a WebMCP-capable environment, a human can load local media, an agent can inspect the shared state and edit tracks/clips, the human can make a manual correction, and the agent can re-read the same live state and continue editing.
 
-## Privacy / local-first
+## Privacy / local-first design
 
-元動画・音声は、通常の編集・書き出しではサーバーへuploadしません。
+Source video and audio are not uploaded to a server during normal editing or export.
 
-ブラウザsession中のruntimeでは `File` / object URLを保持しますが、WebMCPへ公開するEditor stateには含めません。
+The browser runtime keeps `File` objects and object URLs during the current session, but these are excluded from the Editor state exposed through WebMCP.
 
-agentへ渡さないもの:
+The agent-safe state does not include:
 
 - `File`
 - FileSystemFileHandle
-- absolute path
-- object URL
-- local filesystem情報
+- absolute paths
+- object URLs
+- local filesystem information
 
-## 対応環境
+## Browser support
 
-- Desktop Chromeをmanual editor / Preview / Exportの第一基準にする
-- ChatGPT Site Toolsは、2026-08-30時点ではChatGPT desktop appのbuilt-in browserで利用可能
-- OpenAI公式Site Toolsは、2026-08-30時点ではChromeではまだ利用不可
-- Chrome自身のWebMCPはChrome 149以降のorigin trial、またはlocal testing flagで試験可能
-- WebMCP非対応browserでもmanual editor / actual preview / exportは利用可能
+- Desktop Chrome is the primary reference environment for the manual editor, Preview, and Export
+- As of 2026-08-30, OpenAI Site Tools are available in the ChatGPT desktop app's built-in browser
+- As of 2026-08-30, OpenAI Site Tools are not yet available in normal Chrome
+- Chrome's own WebMCP implementation can be tested through the Chrome 149+ origin trial or local testing flag
+- Browsers without WebMCP support can still use the manual editor, actual Preview, and Export
 
-Codex Chrome extensionは既存Chrome profile/session/tabsを使うbrowser操作経路として利用できるが、現在のChrome Site Tools対応とは別物です。DOGAGAはChrome専用automationや独自extensionへ寄せず、標準WebMCP tool contractを維持します。
+The Codex Chrome extension can operate an existing Chrome profile/session/tabs as a browser-control path, but that is separate from current Chrome Site Tools support. DOGAGA keeps a standard WebMCP tool contract rather than depending on Chrome-specific automation or a custom extension.
 
-詳細と検証手順は [WebMCP browser compatibility](docs/WEBMCP_BROWSER_COMPATIBILITY.md) を参照してください。
+See [WebMCP browser compatibility](docs/WEBMCP_BROWSER_COMPATIBILITY.md) for details and validation steps.
 
-## ローカル起動
+## Local development
 
-Node.js 22を推奨します。
+Node.js 22 is recommended.
 
-新規clone後は、lockfileどおりの依存関係を再現するため `npm ci` を使います。
+After a fresh clone, use `npm ci` so dependencies match the lockfile exactly.
 
 ```bash
 git clone https://github.com/yo4e/DOGAGA.git
@@ -135,7 +135,7 @@ npm ci
 npm run dev
 ```
 
-検証:
+Validation:
 
 ```bash
 npm run typecheck
@@ -143,50 +143,49 @@ npm test
 npm run build
 ```
 
-production build outputは `dist/` です。
+The production build output is `dist/`.
 
-GitHub Actionsもclean checkout + Node.js 22 + `npm ci` で同じ検証を行います。
+GitHub Actions uses the same clean-checkout + Node.js 22 + `npm ci` validation path.
 
-## 現在の制約 / 次の優先
+## Current limitations / next priorities
 
-compact production v0は機能を意図的に絞っています。現在の主な制約:
+Compact production v0 intentionally limits scope. Major current limitations include:
 
-- 編集sessionの永続保存 / relinkは未実装
-- video/audio trackのlock UIは未実装
-- audio clipのfade / 再生速度変更は未実装
-- arbitrary clip positioning / gaps / drag trimは未実装
-- waveform / lyrics / captions / advanced effectsは未実装
-- frame-perfectな業務用NLE精度は目標外
+- No persistent editing sessions or media relinking yet
+- No video/audio track lock UI yet
+- No audio clip fade or playback-speed controls yet
+- No arbitrary clip positioning, gaps, or drag trimming yet
+- No waveform, lyrics, captions, or advanced effects yet
+- Frame-perfect professional NLE precision is not a goal for this version
 
-次の重要な製品課題は、**multi-trackの実ブラウザQA、Chrome/WebMCP互換性確認、実利用で見つかるUX修正**です。
+The next important product work is **real-browser multi-track QA, Chrome/WebMCP compatibility validation, and UX fixes discovered through actual use**.
 
 ## WebMCP Challenge 2026
 
-DOGAGAは2026-08-25以前から存在するプロジェクトです。Challenge期間中は、既存DOGAGAへbrowser-native WebMCP共同編集とcompact editor v0実装を追加しています。
+DOGAGA existed before 2026-08-25. During the Challenge period, the existing project has been extended with browser-native WebMCP collaborative editing and the compact editor v0.
 
-Challenge用に別の固定demoアプリを作るのではなく、公開中のDOGAGA本体をそのまま提出・実演に使います。
+The submission uses the public DOGAGA app itself rather than a separate fixed demo application.
 
-Challenge提出動画は3分未満の実演動画として別途用意します。
+A public demo video under three minutes will be prepared separately for the Challenge submission.
 
-## 長期ビジョン
+## Long-term vision
 
-将来的には、次の流れをブラウザだけで完結できる編集ツールを目指します。
+The long-term goal is a browser-only workflow that can handle:
 
-> 楽曲を置く、映像を並べる、歌詞を同期する、文字を演出する、少し加工する、用途に合った形で書き出す。
+> Place a song, arrange footage, synchronize lyrics, style text, apply a small amount of processing, and export for the intended destination.
 
-万能なプロ向け編集ソフトではなく、音楽動画に必要十分な小型編集機を目指します。
+DOGAGA is not intended to become an all-purpose professional editor. The goal is a small editor with enough power for music-centered video work.
 
-## 計画・設計文書
+## Current design and submission documents
 
-- [プロダクト方針](docs/PRODUCT_VISION.md)
-- [開発ロードマップ](docs/DEVELOPMENT_ROADMAP.md)
-- [WebMCP競合調査](docs/WEBMCP_COMPETITOR_RESEARCH.md)
-- [WebMCP compact v0実装方針](docs/WEBMCP_MVP_IMPLEMENTATION_PLAN.md)
+The documents most relevant to the current public build and Challenge review are:
+
+- [Product vision](docs/PRODUCT_VISION.md)
+- [Development roadmap](docs/DEVELOPMENT_ROADMAP.md)
+- [WebMCP compact-v0 implementation plan](docs/WEBMCP_MVP_IMPLEMENTATION_PLAN.md)
 - [WebMCP browser compatibility](docs/WEBMCP_BROWSER_COMPATIBILITY.md)
-- [権利・データ取扱方針](docs/RIGHTS_AND_DATA_POLICY.md)
-- [ブラウザ・コーデック対応表](docs/CODEC_SUPPORT_MATRIX.md)
-- [プロジェクト形式 v0.1](docs/PROJECT_FORMAT.md)
-- [編集コマンドとUndo / Redoモデル](docs/EDIT_COMMAND_MODEL.md)
-- [AI実装者向け作業規約](AGENTS.md)
+- [Rights and data policy](docs/RIGHTS_AND_DATA_POLICY.md)
+- [Devpost submission draft](docs/DEVPOST_SUBMISSION_DRAFT.md)
+- [Challenge demo video script](docs/CHALLENGE_DEMO_VIDEO_SCRIPT.md)
 
-通常ロードマップの長期設計は保持しつつ、現在動いているcompact production v0をDOGAGA本体として段階的に育てます。
+The repository also retains older architecture notes, research, Japanese-first terminology guidance, project-format experiments, codec research, and implementation work notes as historical/internal development material. Those files are not the primary documentation for evaluating the current public build.

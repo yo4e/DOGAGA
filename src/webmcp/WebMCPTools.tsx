@@ -68,7 +68,7 @@ export function WebMCPTools({ controller, onActivity }: Props) {
   const execute = (tool: string, handler: (args: unknown) => unknown) => async (args: unknown) => {
     try {
       const result = await handler(args);
-      onActivity({ id: activityId(), tool, status: "success", message: "完了", at: Date.now() });
+      onActivity({ id: activityId(), tool, status: "success", message: "Completed", at: Date.now() });
       return result;
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : String(caught);
@@ -247,9 +247,9 @@ export function WebMCPTools({ controller, onActivity }: Props) {
     <section className="agent-status" aria-label="WebMCP status" data-supported={supported}>
       <div>
         <strong>WebMCP</strong>
-        <span>{supported ? `接続中 · ${registered}/${tools.length}` : "このブラウザでは未対応"}</span>
+        <span>{supported ? `Connected · ${registered}/${tools.length}` : "Not supported in this browser"}</span>
       </div>
-      {error && <small role="alert">登録エラー: {error.message}</small>}
+      {error && <small role="alert">Registration error: {error.message}</small>}
     </section>
   );
 }
