@@ -554,7 +554,7 @@ function App() {
                 </>
               ) : (
                 <label>
-                  Set audio
+                  Add audio
                   <select
                     name={`audio-source-${track.id}`}
                     aria-label={`Audio source for ${track.name}`}
