@@ -244,10 +244,10 @@ export function WebMCPTools({ controller, onActivity }: Props) {
   const error = tools.find((tool) => tool.error)?.error;
 
   return (
-    <section className="agent-status" aria-label="WebMCP status">
+    <section className="agent-status" aria-label="WebMCP status" data-supported={supported}>
       <div>
         <strong>WebMCP</strong>
-        <span>{supported ? `${registered}/${tools.length} tools ready` : "このブラウザでは未対応"}</span>
+        <span>{supported ? `接続中 · ${registered}/${tools.length}` : "このブラウザでは未対応"}</span>
       </div>
       {error && <small role="alert">登録エラー: {error.message}</small>}
     </section>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, type DragEvent } from "react";
 import { EditorController } from "./editor/controller";
 import { EditorCommandError } from "./editor/executor";
 import {
@@ -14,6 +14,7 @@ import {
   type VideoClip,
 } from "./editor/model";
 import { ExportPanel } from "./export/ExportPanel";
+import { inferAssetKind } from "./media/kind";
 import { MediaRuntime } from "./media/runtime";
 import { probeMediaFile } from "./media/probe";
 import { Preview } from "./preview/Preview";
@@ -48,6 +49,7 @@ function App() {
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
   const [videoTargetTrackId, setVideoTargetTrackId] = useState<string | null>(null);
   const [audioTargetTrackId, setAudioTargetTrackId] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
   const videoClips = useMemo(() => allVideoClips(state), [state.tracks]);
   const videoTracks = useMemo(() => getVideoTracks(state), [state.tracks]);
   const audioTracks = useMemo(() => getAudioTracks(state), [state.tracks]);
@@ -89,21 +91,57 @@ function App() {
     }
   };
 
-  const loadFiles = async (files: FileList | null, kind: AssetKind) => {
-    if (!files?.length) return;
+  const registerMediaFiles = async (
+    entries: Array<{ file: File; kind: AssetKind }>,
+    initialFailures: string[] = [],
+  ) => {
+    if (!entries.length && !initialFailures.length) return;
     setLoading(true);
     setError(null);
+    const failures = [...initialFailures];
     try {
-      for (const file of Array.from(files)) {
-        const asset = await probeMediaFile(file, kind);
-        runtime.register(asset.id, file);
-        controller.registerAsset(asset);
+      for (const { file, kind } of entries) {
+        try {
+          const asset = await probeMediaFile(file, kind);
+          runtime.register(asset.id, file);
+          try {
+            controller.registerAsset(asset);
+          } catch (caught) {
+            runtime.remove(asset.id);
+            throw caught;
+          }
+        } catch (caught) {
+          const message = caught instanceof Error ? caught.message : String(caught);
+          failures.push(message.startsWith(`${file.name}:`) ? message : `${file.name}: ${message}`);
+        }
       }
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught));
     } finally {
       setLoading(false);
+      setError(failures.length ? failures.join(" / ") : null);
     }
+  };
+
+  const loadFiles = async (files: FileList | null, kind: AssetKind) => {
+    if (!files?.length) return;
+    await registerMediaFiles(Array.from(files, (file) => ({ file, kind })));
+  };
+
+  const loadDroppedFiles = async (files: FileList) => {
+    const entries: Array<{ file: File; kind: AssetKind }> = [];
+    const unsupported: string[] = [];
+    for (const file of Array.from(files)) {
+      const kind = inferAssetKind(file);
+      if (kind) entries.push({ file, kind });
+      else unsupported.push(`${file.name}: 対応する動画・音声ファイルではありません`);
+    }
+    await registerMediaFiles(entries, unsupported);
+  };
+
+  const onMediaDrop = (event: DragEvent<HTMLDivElement>) => {
+    if (!Array.from(event.dataTransfer.types).includes("Files")) return;
+    event.preventDefault();
+    setDragActive(false);
+    void loadDroppedFiles(event.dataTransfer.files);
   };
 
   const addVideo = (assetId: string, trackId?: string) => {
@@ -231,76 +269,16 @@ function App() {
 
   return (
     <main className="app-shell">
-      <header className="hero">
-        <p className="eyebrow">Compact WebMCP Video Editor</p>
-        <h1>DOGAGA</h1>
-        <p>自分の動画をブラウザで編集し、その同じ編集stateをbrowser agentとも共有するコンパクトな動画編集アプリ。</p>
-      </header>
-
-      <section className="panel media-panel">
-        <h2>1. 素材</h2>
-        <div className="file-row">
-          <label>
-            動画を選択
-            <input type="file" accept="video/*" multiple onChange={(event) => void loadFiles(event.target.files, "video")} />
-          </label>
-          <label>
-            音源を選択
-            <input type="file" accept="audio/*" onChange={(event) => void loadFiles(event.target.files, "audio")} />
-          </label>
-          <label>
-            動画の追加先
-            <select
-              value={videoTargetTrack?.id ?? ""}
-              onChange={(event) => setVideoTargetTrackId(event.target.value)}
-            >
-              {videoTracks.map((track) => (
-                <option key={track.id} value={track.id}>{track.name}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            音声の追加先
-            <select
-              value={audioTargetTrack?.id ?? ""}
-              onChange={(event) => setAudioTargetTrackId(event.target.value)}
-            >
-              {audioTracks.map((track) => (
-                <option key={track.id} value={track.id}>{track.name}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-        {loading && <p>metadataを読み込み中…</p>}
-        <div className="asset-list">
-          {state.assets.map((asset) => (
-            <div className="asset-card" key={asset.id}>
-              <div>
-                <strong>{asset.name}</strong>
-                <small>{asset.kind} · {seconds(asset.durationUs)}s</small>
-              </div>
-              {asset.kind === "video" ? (
-                <button type="button" onClick={() => addVideo(asset.id, videoTargetTrack?.id)}>
-                  {videoTargetTrack?.name ?? "V1"}末尾へ
-                </button>
-              ) : (
-                <button type="button" onClick={() => setAudioTrack(asset.id, audioTargetTrack?.id)}>
-                  {audioTargetTrack?.name ?? "A1"}に設定
-                </button>
-              )}
-            </div>
-          ))}
-          {!state.assets.length && <p className="muted">まだ素材は読み込まれていません。</p>}
-        </div>
-      </section>
-
-      <section className="panel preview-panel">
-        <div className="panel-heading">
-          <div>
-            <h2>2. プレビュー</h2>
-            <span className="canvas-resolution">{state.canvas.width} × {state.canvas.height}</span>
+      <header className="app-bar">
+        <div className="app-bar-primary">
+          <div className="brand-lockup">
+            <h1 className="app-logo">DOGAGA</h1>
+            <span className="app-tagline">コンパクト WebMCP 動画エディタ</span>
           </div>
-          <div className="canvas-controls">
+          <WebMCPTools controller={controller} onActivity={recordActivity} />
+        </div>
+        <div className="app-bar-tools">
+          <div className="app-bar-canvas" aria-label="動画の表示設定">
             <label>
               動画サイズ
               <select
@@ -323,13 +301,99 @@ function App() {
               </select>
             </label>
           </div>
+          <a className="export-shortcut" href="#export">書き出し</a>
         </div>
-        <Preview state={state} controller={controller} runtime={runtime} />
-      </section>
+      </header>
+
+      <div className="editor-workspace">
+        <section className="panel media-panel media-rail">
+          <h2>素材</h2>
+          <div className="file-row">
+            <label>
+              動画を選択
+              <input type="file" accept="video/*" multiple onChange={(event) => void loadFiles(event.target.files, "video")} />
+            </label>
+            <label>
+              音源を選択
+              <input type="file" accept="audio/*" onChange={(event) => void loadFiles(event.target.files, "audio")} />
+            </label>
+            <label>
+              動画の追加先
+              <select
+                value={videoTargetTrack?.id ?? ""}
+                onChange={(event) => setVideoTargetTrackId(event.target.value)}
+              >
+                {videoTracks.map((track) => (
+                  <option key={track.id} value={track.id}>{track.name}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              音声の追加先
+              <select
+                value={audioTargetTrack?.id ?? ""}
+                onChange={(event) => setAudioTargetTrackId(event.target.value)}
+              >
+                {audioTracks.map((track) => (
+                  <option key={track.id} value={track.id}>{track.name}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div
+            className={`media-dropzone${dragActive ? " drag-active" : ""}`}
+            aria-label="動画または音声ファイルのドロップ領域"
+            onDragEnter={(event) => {
+              if (!Array.from(event.dataTransfer.types).includes("Files")) return;
+              event.preventDefault();
+              setDragActive(true);
+            }}
+            onDragOver={(event) => {
+              if (!Array.from(event.dataTransfer.types).includes("Files")) return;
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "copy";
+            }}
+            onDragLeave={(event) => {
+              const related = event.relatedTarget;
+              if (!(related instanceof Node) || !event.currentTarget.contains(related)) setDragActive(false);
+            }}
+            onDrop={onMediaDrop}
+          >
+            <strong>{loading ? "メディア情報を読み込み中…" : "ここにファイルをドラッグ＆ドロップ"}</strong>
+            <span>対応形式の例: WebM、MP4、MP3、WAV</span>
+          </div>
+          <div className="asset-list">
+            {state.assets.map((asset) => (
+              <div className="asset-card" key={asset.id}>
+                <div>
+                  <strong>{asset.name}</strong>
+                  <small>{asset.kind} · {seconds(asset.durationUs)}s</small>
+                </div>
+                {asset.kind === "video" ? (
+                  <button type="button" onClick={() => addVideo(asset.id, videoTargetTrack?.id)}>
+                    {videoTargetTrack?.name ?? "V1"}末尾へ
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => setAudioTrack(asset.id, audioTargetTrack?.id)}>
+                    {audioTargetTrack?.name ?? "A1"}に設定
+                  </button>
+                )}
+              </div>
+            ))}
+            {!state.assets.length && <p className="muted">まだ素材は読み込まれていません。</p>}
+          </div>
+        </section>
+
+        <section className="panel preview-panel preview-main">
+          <div className="panel-heading">
+            <h2>プレビュー</h2>
+            <span className="canvas-resolution">{state.canvas.width} × {state.canvas.height}</span>
+          </div>
+          <Preview state={state} controller={controller} runtime={runtime} />
+        </section>
+      </div>
 
       <section className="panel timeline-panel">
-        <h2>3. タイムライン</h2>
-        <p className="muted">⌘K / Ctrl+K: 分割 ・ Shift+D: 同じtrackの次clipとのディゾルブ ・ clip右クリック: track / 速度 / fade</p>
         <Timeline
           state={state}
           controller={controller}
@@ -381,7 +445,7 @@ function App() {
             )}
           </div>
         ) : (
-          <p className="muted inspector-empty">video clipを選択すると、移動・カット・削除・ディゾルブ操作が表示されます。</p>
+          <p className="muted inspector-empty">動画クリップを選択すると、移動・カット・削除・ディゾルブ操作が表示されます。</p>
         )}
 
         {audioTracks.map((track) => {
@@ -457,28 +521,37 @@ function App() {
         })}
       </section>
 
-      <ExportPanel state={state} runtime={runtime} />
+      <div className="export-primary" id="export">
+        <ExportPanel state={state} runtime={runtime} />
+      </div>
 
-      <section className="panel agent-panel">
-        <h2>5. WebMCP / Agent</h2>
-        <WebMCPTools controller={controller} onActivity={recordActivity} />
-        <div className="activity-list" aria-live="polite">
-          {activities.map((activity) => (
-            <div className={`activity-item ${activity.status}`} key={activity.id}>
-              <strong>Agent: {activity.tool}</strong>
-              <span>{activity.status === "success" ? "成功" : "エラー"}</span>
-              <small>{activity.message}</small>
+      <details className="developer-details">
+        <summary>
+          <span>WebMCP・開発者情報</span>
+          <small>エージェントの実行履歴と安全な状態を確認</small>
+        </summary>
+        <div className="developer-content">
+          <section className="panel agent-panel">
+            <h2>エージェントの実行履歴</h2>
+            <div className="activity-list" aria-live="polite">
+              {activities.map((activity) => (
+                <div className={`activity-item ${activity.status}`} key={activity.id}>
+                  <strong>Agent: {activity.tool}</strong>
+                  <span>{activity.status === "success" ? "成功" : "エラー"}</span>
+                  <small>{activity.message}</small>
+                </div>
+              ))}
+              {!activities.length && <p className="muted">エージェントからツールが実行されると、ここに履歴が表示されます。</p>}
             </div>
-          ))}
-          {!activities.length && <p className="muted">Agentからtoolが実行されると、ここに履歴が表示されます。</p>}
-        </div>
-      </section>
+          </section>
 
-      <section className="panel state-panel">
-        <h2>6. Agent-safe state</h2>
-        <p className="muted">WebMCPの `get_project_state` はこの形だけを返す。File / path / object URLは含めない。</p>
-        <pre>{JSON.stringify(controller.getSafeState(), null, 2)}</pre>
-      </section>
+          <section className="panel state-panel">
+            <h2>エージェントに共有する状態</h2>
+            <p className="muted">WebMCPの `get_project_state` が返す安全な情報です。ファイル、パス、オブジェクトURLは含みません。</p>
+            <pre>{JSON.stringify(controller.getSafeState(), null, 2)}</pre>
+          </section>
+        </div>
+      </details>
 
       {error && <aside className="error-banner" role="alert">{error}</aside>}
     </main>
