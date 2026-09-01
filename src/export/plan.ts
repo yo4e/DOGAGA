@@ -14,6 +14,7 @@ export type ExportVideoLayer = {
   trackId: string;
   clipId: string;
   assetId: string;
+  assetKind: "video" | "image";
   sourceTimeUs: number;
   opacity: number;
 };
@@ -83,13 +84,18 @@ export function videoLayersAt(state: EditorState, timelineUs: number): ExportVid
     if (!track.visible || track.opacity <= 0) return [];
     return track.clips
       .filter((clip) => timelineUs >= clip.timelineStartUs && timelineUs < clipEndUs(clip))
-      .map((clip) => ({
-        trackId: track.id,
-        clipId: clip.id,
-        assetId: clip.assetId,
-        sourceTimeUs: sourceTimeUsAt(clip, timelineUs),
-        opacity: opacityAt(state, clip, track.opacity, timelineUs),
-      }));
+      .flatMap((clip) => {
+        const asset = state.assets.find((candidate) => candidate.id === clip.assetId);
+        if (!asset || (asset.kind !== "video" && asset.kind !== "image")) return [];
+        return [{
+          trackId: track.id,
+          clipId: clip.id,
+          assetId: clip.assetId,
+          assetKind: asset.kind,
+          sourceTimeUs: asset.kind === "video" ? sourceTimeUsAt(clip, timelineUs) : 0,
+          opacity: opacityAt(state, clip, track.opacity, timelineUs),
+        }];
+      });
   });
 }
 
@@ -106,7 +112,7 @@ export function computeDrawRegion(
     !Number.isFinite(sourceWidth) || !Number.isFinite(sourceHeight) ||
     !Number.isFinite(canvasWidth) || !Number.isFinite(canvasHeight)
   ) {
-    throw new Error("Video or canvas dimensions are invalid");
+    throw new Error("Visual or canvas dimensions are invalid");
   }
 
   if (fitMode === "contain") {
@@ -149,7 +155,7 @@ export function computeDrawRegion(
     sw: sourceWidth,
     sh,
     dx: 0,
-    dy: 0,
+    dy: (canvasHeight - sh) / 2,
     dw: canvasWidth,
     dh: canvasHeight,
   };
