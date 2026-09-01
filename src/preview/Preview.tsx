@@ -25,6 +25,7 @@ import {
   type VideoClip,
 } from "../editor/model";
 import type { MediaRuntime } from "../media/runtime";
+import { playbackPositionUs, type PlaybackClock } from "./playbackClock";
 
 const US = 1_000_000;
 const MEDIA_SYNC_TOLERANCE_SECONDS = 0.05;
@@ -32,11 +33,6 @@ type Props = {
   state: EditorState;
   controller: EditorController;
   runtime: MediaRuntime;
-};
-
-type Clock = {
-  wallMs: number;
-  playheadUs: number;
 };
 
 type AudioLayer = {
@@ -142,7 +138,7 @@ export function Preview({ state, controller, runtime }: Props) {
   const [masterVolume, setMasterVolume] = useState(1);
   const [fullscreen, setFullscreen] = useState(false);
   const [stageFit, setStageFit] = useState<"width" | "height">("height");
-  const clockRef = useRef<Clock | null>(null);
+  const clockRef = useRef<PlaybackClock | null>(null);
   const audioRefs = useRef(new Map<string, HTMLAudioElement>());
   const editorRef = useRef<HTMLDivElement>(null);
   const monitorRef = useRef<HTMLDivElement>(null);
@@ -233,7 +229,7 @@ export function Preview({ state, controller, runtime }: Props) {
       if (!clock) return;
       const currentState = controller.getState();
       const maxUs = timelineDurationUs(currentState);
-      const nextUs = Math.min(maxUs, clock.playheadUs + Math.round((now - clock.wallMs) * 1000));
+      const nextUs = playbackPositionUs(clock, now, maxUs);
       controller.setPlayheadUs(nextUs);
       if (nextUs >= maxUs) {
         clockRef.current = null;
