@@ -35,6 +35,11 @@ type PreparedVideo = {
   element: HTMLVideoElement;
 };
 
+type PreparedImage = {
+  clip: VideoClip;
+  element: HTMLImageElement;
+};
+
 type PreparedAudioSource = {
   clip: AudioClip;
   source: AudioBufferSourceNode;
@@ -71,6 +76,30 @@ function waitForVideoReady(video: HTMLVideoElement): Promise<void> {
   });
 }
 
+function waitForImageReady(image: HTMLImageElement): Promise<void> {
+  if (image.complete && image.naturalWidth > 0 && image.naturalHeight > 0) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      image.removeEventListener("load", onReady);
+      image.removeEventListener("error", onError);
+    };
+    const onReady = () => {
+      cleanup();
+      if (image.naturalWidth <= 0 || image.naturalHeight <= 0) {
+        reject(new Error("Failed to read an image asset"));
+        return;
+      }
+      resolve();
+    };
+    const onError = () => {
+      cleanup();
+      reject(new Error("Failed to load an image asset"));
+    };
+    image.addEventListener("load", onReady, { once: true });
+    image.addEventListener("error", onError, { once: true });
+  });
+}
+
 function waitForSeek(video: HTMLVideoElement): Promise<void> {
   if (!video.seeking) return Promise.resolve();
   return new Promise((resolve, reject) => {
@@ -93,8 +122,11 @@ function waitForSeek(video: HTMLVideoElement): Promise<void> {
 
 async function prepareVideos(state: EditorState, runtime: MediaRuntime): Promise<Map<string, PreparedVideo>> {
   const prepared = new Map<string, PreparedVideo>();
+  const videoClips = allVideoClips(state).filter((clip) =>
+    state.assets.find((asset) => asset.id === clip.assetId)?.kind === "video",
+  );
 
-  await Promise.all(allVideoClips(state).map(async (clip) => {
+  await Promise.all(videoClips.map(async (clip) => {
     const binding = runtime.get(clip.assetId);
     if (!binding) throw new Error(`Runtime binding for video asset ${clip.assetId} was not found`);
 
@@ -111,6 +143,25 @@ async function prepareVideos(state: EditorState, runtime: MediaRuntime): Promise
     video.currentTime = clip.sourceInUs / US;
     await waitForSeek(video);
     prepared.set(clip.id, { clip, element: video });
+  }));
+
+  return prepared;
+}
+
+async function prepareImages(state: EditorState, runtime: MediaRuntime): Promise<Map<string, PreparedImage>> {
+  const prepared = new Map<string, PreparedImage>();
+  const imageClips = allVideoClips(state).filter((clip) =>
+    state.assets.find((asset) => asset.id === clip.assetId)?.kind === "image",
+  );
+
+  await Promise.all(imageClips.map(async (clip) => {
+    const binding = runtime.get(clip.assetId);
+    if (!binding) throw new Error(`Runtime binding for image asset ${clip.assetId} was not found`);
+    const image = new Image();
+    image.decoding = "async";
+    image.src = binding.objectUrl;
+    await waitForImageReady(image);
+    prepared.set(clip.id, { clip, element: image });
   }));
 
   return prepared;
@@ -158,6 +209,7 @@ function drawFrame(
   context: CanvasRenderingContext2D,
   state: EditorState,
   videos: Map<string, PreparedVideo>,
+  images: Map<string, PreparedImage>,
   timelineUs: number,
 ): void {
   context.save();
@@ -166,13 +218,42 @@ function drawFrame(
   context.fillRect(0, 0, state.canvas.width, state.canvas.height);
 
   const layers = videoLayersAt(state, timelineUs);
-  const activeClipIds = new Set(layers.map((layer) => layer.clipId));
+  const activeVideoClipIds = new Set(
+    layers.filter((layer) => layer.assetKind === "video").map((layer) => layer.clipId),
+  );
 
   for (const [clipId, prepared] of videos) {
-    if (!activeClipIds.has(clipId) && !prepared.element.paused) prepared.element.pause();
+    if (!activeVideoClipIds.has(clipId) && !prepared.element.paused) prepared.element.pause();
   }
 
   for (const layer of layers) {
+    context.globalAlpha = layer.opacity;
+
+    if (layer.assetKind === "image") {
+      const prepared = images.get(layer.clipId);
+      if (!prepared) continue;
+      const image = prepared.element;
+      const region = computeDrawRegion(
+        image.naturalWidth,
+        image.naturalHeight,
+        state.canvas.width,
+        state.canvas.height,
+        state.canvas.fitMode,
+      );
+      context.drawImage(
+        image,
+        region.sx,
+        region.sy,
+        region.sw,
+        region.sh,
+        region.dx,
+        region.dy,
+        region.dw,
+        region.dh,
+      );
+      continue;
+    }
+
     const prepared = videos.get(layer.clipId);
     if (!prepared) continue;
     const video = prepared.element;
@@ -192,7 +273,6 @@ function drawFrame(
         state.canvas.height,
         state.canvas.fitMode,
       );
-      context.globalAlpha = layer.opacity;
       context.drawImage(
         video,
         region.sx,
@@ -227,7 +307,7 @@ function createRecorder(stream: MediaStream): { recorder: MediaRecorder; format:
 }
 
 export async function exportProject({ state, runtime, onProgress, signal }: ExportProjectOptions): Promise<ExportResult> {
-  if (!allVideoClips(state).length) throw new Error("There are no video clips to export");
+  if (!allVideoClips(state).length) throw new Error("There are no visual clips to export");
   if (signal?.aborted) throw abortError();
 
   const durationUs = exportDurationUs(state);
@@ -243,6 +323,7 @@ export async function exportProject({ state, runtime, onProgress, signal }: Expo
   }
 
   const videos = await prepareVideos(state, runtime);
+  const images = await prepareImages(state, runtime);
   const audio = await prepareAudio(state, runtime);
   const canvasStream = canvas.captureStream(EXPORT_FPS);
   const stream = new MediaStream(canvasStream.getVideoTracks());
@@ -289,14 +370,14 @@ export async function exportProject({ state, runtime, onProgress, signal }: Expo
         resolve({ blob, format, durationUs });
       });
 
-      drawFrame(context, state, videos, 0);
+      drawFrame(context, state, videos, images, 0);
       recorder.start(500);
       if (audio) startAudio(audio);
       const startMs = performance.now();
 
       const render = (now: number) => {
         const elapsedUs = Math.min(durationUs, Math.max(0, Math.round((now - startMs) * 1000)));
-        drawFrame(context, state, videos, elapsedUs);
+        drawFrame(context, state, videos, images, elapsedUs);
         onProgress?.({ elapsedUs, totalUs: durationUs });
 
         if (elapsedUs >= durationUs) {
@@ -317,6 +398,7 @@ export async function exportProject({ state, runtime, onProgress, signal }: Expo
       prepared.element.removeAttribute("src");
       prepared.element.load();
     }
+    for (const prepared of images.values()) prepared.element.removeAttribute("src");
     for (const track of stream.getTracks()) track.stop();
     for (const track of canvasStream.getTracks()) track.stop();
     if (audio) {
