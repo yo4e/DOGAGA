@@ -113,7 +113,7 @@ The agent should call `get_project_state` again and then one mutation tool.
 
 **Screen**
 
-Click **動画を書き出す / Export video**. Show progress briefly, then show the download result. If recording time is tight, use short source clips so export finishes quickly.
+Click **Export video**. Show progress briefly, then show the download result. If recording time is tight, use short source clips so export finishes quickly.
 
 **Narration**
 

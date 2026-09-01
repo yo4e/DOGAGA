@@ -106,7 +106,7 @@ export function computeDrawRegion(
     !Number.isFinite(sourceWidth) || !Number.isFinite(sourceHeight) ||
     !Number.isFinite(canvasWidth) || !Number.isFinite(canvasHeight)
   ) {
-    throw new Error("動画またはcanvasのサイズが不正です");
+    throw new Error("Video or canvas dimensions are invalid");
   }
 
   if (fitMode === "contain") {

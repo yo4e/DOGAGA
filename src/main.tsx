@@ -7,7 +7,7 @@ import "./timeline/multitrack.css";
 const root = document.getElementById("root");
 
 if (!root) {
-  throw new Error("#root が見つかりません");
+  throw new Error("#root element was not found");
 }
 
 createRoot(root).render(

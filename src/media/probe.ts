@@ -17,7 +17,7 @@ export async function probeMediaFile(file: File, kind: AssetKind): Promise<Asset
         media.preload = "metadata";
         media.onloadedmetadata = () => {
           if (!Number.isFinite(media.duration) || media.duration <= 0) {
-            reject(new Error(`${file.name}: durationを取得できませんでした`));
+            reject(new Error(`${file.name}: Could not read media duration`));
             return;
           }
           if (media instanceof HTMLVideoElement) {
@@ -30,7 +30,7 @@ export async function probeMediaFile(file: File, kind: AssetKind): Promise<Asset
           }
           resolve({ duration: media.duration });
         };
-        media.onerror = () => reject(new Error(`${file.name}: ブラウザでmetadataを読めませんでした`));
+        media.onerror = () => reject(new Error(`${file.name}: The browser could not read media metadata`));
         media.src = objectUrl;
       },
     );

@@ -71,7 +71,7 @@ function tickStep(pixelsPerSecond: number, durationSeconds: number): number {
 }
 
 function fadeLabel(durationUs: number): string {
-  return durationUs === 0 ? "なし" : `${durationUs / US}秒`;
+  return durationUs === 0 ? "None" : `${durationUs / US}s`;
 }
 
 export function Timeline({ state, controller, selectedClipId, onSelectClip }: Props) {
@@ -162,15 +162,15 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
       <div className="track-label" key={track.id}>
         <div className="track-label-title">
           <strong>{track.name}</strong>
-          <span>{track.kind === "video" ? "動画" : "音声"}</span>
+          <span>{track.kind === "video" ? "Video" : "Audio"}</span>
         </div>
         <div className="track-mini-controls">
           {track.kind === "video" ? (
             <>
               <button
                 type="button"
-                title={track.visible ? "非表示にする" : "表示する"}
-                aria-label={track.visible ? `${track.name}を非表示にする` : `${track.name}を表示する`}
+                title={track.visible ? "Hide track" : "Show track"}
+                aria-label={track.visible ? `Hide ${track.name}` : `Show ${track.name}`}
                 onClick={() => controller.execute({ type: "setTrackVisibility", trackId: track.id, visible: !track.visible })}
               >
                 {track.visible ? (
@@ -180,8 +180,8 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
                 )}
               </button>
               <input
-                aria-label={`${track.name}の不透明度`}
-                title={`${track.name} 不透明度 ${Math.round(track.opacity * 100)}%`}
+                aria-label={`${track.name} opacity`}
+                title={`${track.name} opacity ${Math.round(track.opacity * 100)}%`}
                 type="range"
                 min="0"
                 max="1"
@@ -197,8 +197,8 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
           ) : (
             <button
               type="button"
-              title={track.muted ? "ミュート解除" : "ミュート"}
-              aria-label={track.muted ? `${track.name}のミュートを解除する` : `${track.name}をミュートする`}
+              title={track.muted ? "Unmute" : "Mute"}
+              aria-label={track.muted ? `Unmute ${track.name}` : `Mute ${track.name}`}
               onClick={() => controller.execute({ type: "setTrackMute", trackId: track.id, muted: !track.muted })}
             >
               {track.muted ? (
@@ -210,8 +210,8 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
           )}
           <button
             type="button"
-            title="上へ"
-            aria-label={`${track.name}を上へ移動`}
+            title="Move up"
+            aria-label={`Move ${track.name} up`}
             disabled={upIndex === null}
             onClick={() => {
               if (upIndex !== null) controller.execute({ type: "moveTrack", trackId: track.id, toIndex: upIndex });
@@ -219,8 +219,8 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
           ><ArrowUpIcon size={14} weight="regular" aria-hidden="true" /></button>
           <button
             type="button"
-            title="下へ"
-            aria-label={`${track.name}を下へ移動`}
+            title="Move down"
+            aria-label={`Move ${track.name} down`}
             disabled={downIndex === null}
             onClick={() => {
               if (downIndex !== null) controller.execute({ type: "moveTrack", trackId: track.id, toIndex: downIndex });
@@ -229,8 +229,8 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
           {!isDefault && (
             <button
               type="button"
-              title={track.clips.length ? "空にすると削除できます" : "トラックを削除"}
-              aria-label={`${track.name}を削除`}
+              title={track.clips.length ? "Remove all clips before deleting this track" : "Delete track"}
+              aria-label={`Delete ${track.name}`}
               disabled={track.clips.length > 0}
               onClick={() => controller.execute({ type: "removeTrack", trackId: track.id })}
             ><TrashIcon size={15} weight="regular" aria-hidden="true" /></button>
@@ -243,19 +243,19 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
   return (
     <div className="timeline-editor">
       <div className="timeline-toolbar">
-        <h2>タイムライン</h2>
+        <h2>Timeline</h2>
         <div className="timeline-toolbar-actions">
-          <button type="button" onClick={() => addTrack("video")}>＋動画</button>
-          <button type="button" onClick={() => addTrack("audio")}>＋音声</button>
+          <button type="button" onClick={() => addTrack("video")}>+ Video</button>
+          <button type="button" onClick={() => addTrack("audio")}>+ Audio</button>
           <label>
-            表示幅
+            Scale
             <select
               value={pixelsPerSecond}
               onChange={(event) => setPixelsPerSecond(Number(event.target.value) as (typeof SCALE_OPTIONS)[number])}
             >
-              <option value={24}>広く見る</option>
-              <option value={48}>標準</option>
-              <option value={80}>細かく見る</option>
+              <option value={24}>Wide</option>
+              <option value={48}>Standard</option>
+              <option value={80}>Detailed</option>
             </select>
           </label>
         </div>
@@ -263,7 +263,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
 
       <div className="timeline-workspace">
         <div className="timeline-sidebar">
-          <div className="timeline-corner">トラック / 時間</div>
+          <div className="timeline-corner">Tracks / Time</div>
           {rows.map(renderTrackControls)}
         </div>
 
@@ -272,7 +272,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
             <button
               type="button"
               className="time-ruler"
-              aria-label="タイムライン上で再生位置を選ぶ"
+              aria-label="Choose the playhead position on the timeline"
               onClick={seekFromClick}
             >
               {ticks.map((second) => (
@@ -301,7 +301,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
                           className={`timeline-clip${selectedClipId === clip.id ? " selected" : ""}`}
                           key={clip.id}
                           aria-pressed={selectedClipId === clip.id}
-                          title={`${asset?.name ?? clip.assetId} · ${(clipDuration / US).toFixed(2)}秒 · ${clip.playbackRate}× · fade ${fadeLabel(clip.fadeInUs)} / ${fadeLabel(clip.fadeOutUs)}`}
+                          title={`${asset?.name ?? clip.assetId} · ${(clipDuration / US).toFixed(2)}s · ${clip.playbackRate}× · fade ${fadeLabel(clip.fadeInUs)} / ${fadeLabel(clip.fadeOutUs)}`}
                           style={{
                             left: (clip.timelineStartUs / US) * pixelsPerSecond,
                             width: Math.max(28, (clipDuration / US) * pixelsPerSecond),
@@ -328,7 +328,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
                       );
                     })}
                     {!track.clips.length && (
-                      <span className="track-empty">動画クリップをここに追加（{track.name}）</span>
+                      <span className="track-empty">Add video clips here ({track.name})</span>
                     )}
                     {state.transitions.map((transition) => {
                       const toClip = track.clips.find((clip) => clip.id === transition.toClipId);
@@ -337,7 +337,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
                         <span
                           className="transition-marker"
                           key={transition.id}
-                          title={`クロスディゾルブ ${(transition.durationUs / US).toFixed(1)}秒`}
+                          title={`Cross-dissolve ${(transition.durationUs / US).toFixed(1)}s`}
                           style={{ left: (toClip.timelineStartUs / US) * pixelsPerSecond }}
                         >D</span>
                       );
@@ -357,18 +357,18 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
                     <div
                       className="timeline-audio"
                       key={clip.id}
-                      title={`${state.assets.find((asset) => asset.id === clip.assetId)?.name ?? "Audio"} · 音量 ${Math.round(clip.volume * 100)}%`}
+                      title={`${state.assets.find((asset) => asset.id === clip.assetId)?.name ?? "Audio"} · Volume ${Math.round(clip.volume * 100)}%`}
                       style={{
                         left: (clip.timelineStartUs / US) * pixelsPerSecond,
                         width: Math.max(28, ((clip.sourceOutUs - clip.sourceInUs) / US) * pixelsPerSecond),
                       }}
                     >
                       <strong>{state.assets.find((asset) => asset.id === clip.assetId)?.name ?? "Audio"}</strong>
-                      <span>音量 {Math.round(clip.volume * 100)}%</span>
+                      <span>Volume {Math.round(clip.volume * 100)}%</span>
                     </div>
                   ))}
                   {!track.clips.length && (
-                    <span className="track-empty">音声クリップをここに追加（{track.name}）</span>
+                    <span className="track-empty">Add audio here ({track.name})</span>
                   )}
                 </div>
               );
@@ -385,19 +385,19 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
         </div>
       </div>
 
-      <p className="timeline-help">⌘K / Ctrl+Kで分割、Shift+Dでディゾルブ。右クリックで速度・フェード・移動先を変更できます。</p>
+      <p className="timeline-help">⌘K / Ctrl+K to split, Shift+D to toggle a dissolve. Right-click a clip to change speed, fades, or its target track.</p>
 
       {clipMenu && menuClip && menuLocation && (
         <div
           className="clip-context-menu"
           role="dialog"
-          aria-label="クリップ設定"
+          aria-label="Clip settings"
           style={{ left: clipMenu.x, top: clipMenu.y }}
           onPointerDown={(event) => event.stopPropagation()}
           onContextMenu={(event) => event.preventDefault()}
         >
           <label>
-            動画トラック
+            Video track
             <select
               value={menuLocation.track.id}
               onChange={(event) => {
@@ -411,7 +411,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
             </select>
           </label>
           <label>
-            再生速度
+            Playback speed
             <select
               autoFocus
               value={menuClip.playbackRate}
@@ -427,7 +427,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
             </select>
           </label>
           <label>
-            フェードイン
+            Fade in
             <select
               value={menuClip.fadeInUs}
               onChange={(event) => controller.execute({
@@ -443,7 +443,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
             </select>
           </label>
           <label>
-            フェードアウト
+            Fade out
             <select
               value={menuClip.fadeOutUs}
               onChange={(event) => controller.execute({
@@ -458,7 +458,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
               ))}
             </select>
           </label>
-          <small>速度とフェードはクリップ単位です。トラックを移動しても素材範囲は維持されます。</small>
+          <small>Speed and fades are per clip. Moving a clip to another track keeps its source range.</small>
         </div>
       )}
     </div>

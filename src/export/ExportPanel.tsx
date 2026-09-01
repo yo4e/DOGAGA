@@ -75,7 +75,7 @@ export function ExportPanel({ state, runtime }: Props) {
       setDownload({ url, filename: timestampName(result.format.extension), result });
     } catch (caught) {
       if (caught instanceof DOMException && caught.name === "AbortError") {
-        setError("書き出しをキャンセルしました");
+        setError("Export canceled");
       } else {
         setError(caught instanceof Error ? caught.message : String(caught));
       }
@@ -89,19 +89,20 @@ export function ExportPanel({ state, runtime }: Props) {
 
   return (
     <section className="panel export-panel">
-      <h2>4. 書き出し</h2>
+      <h2>4. Export</h2>
       <p className="muted">
-        video trackの重なり・opacity・表示状態、audio trackのmix / mute、clip編集、動画サイズ、ディゾルブを実動画へ反映してローカルで書き出します。
-        利用可能ならMP4、対応していない環境ではWebMを使います。
+        Exports the current project locally, including video track compositing, opacity and visibility,
+        audio track mixing and mute, clip edits, canvas settings, and dissolves.
+        DOGAGA uses MP4 when available and falls back to WebM when necessary.
       </p>
 
       <div className="export-actions">
         <button type="button" disabled={exporting || !hasVideo} onClick={() => void start()}>
-          {exporting ? "書き出し中…" : "動画を書き出す"}
+          {exporting ? "Exporting…" : "Export video"}
         </button>
         {exporting && (
           <button type="button" onClick={() => abortRef.current?.abort()}>
-            キャンセル
+            Cancel
           </button>
         )}
       </div>
@@ -111,19 +112,19 @@ export function ExportPanel({ state, runtime }: Props) {
           <progress max="100" value={progressPercent} />
           <span>
             {(progress.elapsedUs / US).toFixed(1)}s / {(progress.totalUs / US).toFixed(1)}s
-            ・{progressPercent.toFixed(0)}%
+            · {progressPercent.toFixed(0)}%
           </span>
         </div>
       )}
 
       {download && (
         <div className="export-result">
-          <strong>書き出し完了</strong>
+          <strong>Export complete</strong>
           <span>
-            {download.result.format.extension.toUpperCase()} ・ {(download.result.blob.size / 1024 / 1024).toFixed(1)} MB
+            {download.result.format.extension.toUpperCase()} · {(download.result.blob.size / 1024 / 1024).toFixed(1)} MB
           </span>
           <a className="download-link" href={download.url} download={download.filename}>
-            {download.filename} をダウンロード
+            Download {download.filename}
           </a>
         </div>
       )}
