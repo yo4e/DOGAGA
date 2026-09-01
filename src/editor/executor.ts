@@ -3,6 +3,8 @@ import {
   DEFAULT_AUDIO_TRACK_ID,
   DEFAULT_VIDEO_TRACK_ID,
   FADE_DURATIONS_US,
+  IMAGE_MAX_DURATION_US,
+  IMAGE_MIN_DURATION_US,
   PLAYBACK_RATES,
   allAudioClips,
   allVideoClips,
@@ -65,6 +67,15 @@ function validatePlaybackRate(playbackRate: number): void {
 function validateFadeDuration(durationUs: number): void {
   if (!(FADE_DURATIONS_US as readonly number[]).includes(durationUs)) {
     fail("INVALID_FADE_DURATION", "fadeは 0 / 0.25 / 0.5 / 1 / 2秒のいずれかで指定してください");
+  }
+}
+
+function validateStillDuration(durationUs: number): void {
+  if (!Number.isSafeInteger(durationUs) || durationUs < IMAGE_MIN_DURATION_US || durationUs > IMAGE_MAX_DURATION_US) {
+    fail(
+      "INVALID_STILL_DURATION",
+      `静止画の表示時間は ${IMAGE_MIN_DURATION_US} から ${IMAGE_MAX_DURATION_US} マイクロ秒の範囲で指定してください`,
+    );
   }
 }
 
@@ -284,7 +295,9 @@ export function executeCommand(state: EditorState, command: EditorCommand): Edit
       const track = getVideoTrack(state, command.trackId);
       assertUnlocked(track);
       const asset = getAsset(state, command.clip.assetId);
-      if (asset.kind !== "video") fail("ASSET_KIND_MISMATCH", "video clipにはvideo Assetが必要です");
+      if (asset.kind !== "video" && asset.kind !== "image") {
+        fail("ASSET_KIND_MISMATCH", "V trackにはvideoまたはimage Assetが必要です");
+      }
       validateRange(asset, command.clip.sourceInUs, command.clip.sourceOutUs);
       const playbackRate = command.clip.playbackRate ?? 1;
       const fadeInUs = command.clip.fadeInUs ?? 0;
@@ -292,6 +305,11 @@ export function executeCommand(state: EditorState, command: EditorCommand): Edit
       validatePlaybackRate(playbackRate);
       validateFadeDuration(fadeInUs);
       validateFadeDuration(fadeOutUs);
+      if (asset.kind === "image") {
+        if (command.clip.sourceInUs !== 0 || command.clip.sourceOutUs !== asset.durationUs || playbackRate !== 1) {
+          fail("INVALID_IMAGE_CLIP", "静止画は既定表示時間・1xで追加し、表示時間はsetClipDurationで変更してください");
+        }
+      }
 
       const atIndex = command.atIndex ?? track.clips.length;
       if (!Number.isInteger(atIndex) || atIndex < 0 || atIndex > track.clips.length) {
@@ -354,6 +372,9 @@ export function executeCommand(state: EditorState, command: EditorCommand): Edit
       if (!location) fail("CLIP_NOT_FOUND", `Clip ${command.clipId} が見つかりません`);
       assertUnlocked(location.track);
       const asset = getAsset(state, location.clip.assetId);
+      if (asset.kind === "image") {
+        fail("IMAGE_SOURCE_OPERATION_UNSUPPORTED", "静止画にはsource trimはありません。表示時間を変更してください");
+      }
       validateRange(asset, command.sourceInUs, command.sourceOutUs);
       const clips = [...location.track.clips];
       clips[location.clipIndex] = clampFades({
@@ -368,6 +389,10 @@ export function executeCommand(state: EditorState, command: EditorCommand): Edit
       const location = findVideoClipLocation(state, command.clipId);
       if (!location) fail("CLIP_NOT_FOUND", `Clip ${command.clipId} が見つかりません`);
       assertUnlocked(location.track);
+      const asset = getAsset(state, location.clip.assetId);
+      if (asset.kind === "image") {
+        fail("IMAGE_SOURCE_OPERATION_UNSUPPORTED", "静止画clipはsplitできません。表示時間を変更してください");
+      }
       if (clipIdExists(state, command.newClipId)) {
         fail("CLIP_ID_CONFLICT", `Clip ${command.newClipId} はすでに存在します`);
       }
@@ -413,10 +438,34 @@ export function executeCommand(state: EditorState, command: EditorCommand): Edit
       const location = findVideoClipLocation(state, command.clipId);
       if (!location) fail("CLIP_NOT_FOUND", `Clip ${command.clipId} が見つかりません`);
       assertUnlocked(location.track);
+      const asset = getAsset(state, location.clip.assetId);
+      if (asset.kind === "image") {
+        fail("IMAGE_SOURCE_OPERATION_UNSUPPORTED", "静止画にはplayback speedはありません。表示時間を変更してください");
+      }
       validatePlaybackRate(command.playbackRate);
       if (location.clip.playbackRate === command.playbackRate) return state;
       const clips = [...location.track.clips];
       clips[location.clipIndex] = clampFades({ ...location.clip, playbackRate: command.playbackRate });
+      return replaceTrack(state, location.track.id, { ...location.track, clips });
+    }
+
+    case "setClipDuration": {
+      const location = findVideoClipLocation(state, command.clipId);
+      if (!location) fail("CLIP_NOT_FOUND", `Clip ${command.clipId} が見つかりません`);
+      assertUnlocked(location.track);
+      const asset = getAsset(state, location.clip.assetId);
+      if (asset.kind !== "image") {
+        fail("STILL_DURATION_ONLY", "setClipDurationは静止画clip専用です");
+      }
+      validateStillDuration(command.durationUs);
+      if (clipDurationUs(location.clip) === command.durationUs) return state;
+      const clips = [...location.track.clips];
+      clips[location.clipIndex] = clampFades({
+        ...location.clip,
+        sourceInUs: 0,
+        sourceOutUs: command.durationUs,
+        playbackRate: 1,
+      });
       return replaceTrack(state, location.track.id, { ...location.track, clips });
     }
 
