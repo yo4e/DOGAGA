@@ -47,7 +47,7 @@ type PreparedAudio = {
 };
 
 function abortError(): DOMException {
-  return new DOMException("書き出しをキャンセルしました", "AbortError");
+  return new DOMException("Export canceled", "AbortError");
 }
 
 function waitForVideoReady(video: HTMLVideoElement): Promise<void> {
@@ -64,7 +64,7 @@ function waitForVideoReady(video: HTMLVideoElement): Promise<void> {
     };
     const onError = () => {
       cleanup();
-      reject(new Error("動画素材の読み込みに失敗しました"));
+      reject(new Error("Failed to load a video asset"));
     };
     video.addEventListener("loadeddata", onReady, { once: true });
     video.addEventListener("error", onError, { once: true });
@@ -84,7 +84,7 @@ function waitForSeek(video: HTMLVideoElement): Promise<void> {
     };
     const onError = () => {
       cleanup();
-      reject(new Error("動画素材のシークに失敗しました"));
+      reject(new Error("Failed to seek a video asset"));
     };
     video.addEventListener("seeked", onSeeked, { once: true });
     video.addEventListener("error", onError, { once: true });
@@ -96,7 +96,7 @@ async function prepareVideos(state: EditorState, runtime: MediaRuntime): Promise
 
   await Promise.all(allVideoClips(state).map(async (clip) => {
     const binding = runtime.get(clip.assetId);
-    if (!binding) throw new Error(`動画素材 ${clip.assetId} のruntime bindingが見つかりません`);
+    if (!binding) throw new Error(`Runtime binding for video asset ${clip.assetId} was not found`);
 
     const video = document.createElement("video");
     video.src = binding.objectUrl;
@@ -129,7 +129,7 @@ async function prepareAudio(state: EditorState, runtime: MediaRuntime): Promise<
     const binding = runtime.get(clip.assetId);
     if (!binding) {
       await context.close();
-      throw new Error(`音源 ${clip.assetId} のruntime bindingが見つかりません`);
+      throw new Error(`Runtime binding for audio asset ${clip.assetId} was not found`);
     }
 
     const buffer = await context.decodeAudioData(await binding.file.arrayBuffer());
@@ -212,34 +212,34 @@ function drawFrame(
 
 function createRecorder(stream: MediaStream): { recorder: MediaRecorder; format: RecorderFormat } {
   if (typeof MediaRecorder === "undefined") {
-    throw new Error("このブラウザは動画書き出しに必要なMediaRecorderへ対応していません");
+    throw new Error("This browser does not support the MediaRecorder API required for video export");
   }
 
   const format = pickRecorderFormat((mimeType) => MediaRecorder.isTypeSupported(mimeType));
-  if (!format) throw new Error("このブラウザで利用できる動画書き出し形式が見つかりません");
+  if (!format) throw new Error("No supported video export format is available in this browser");
 
   try {
     return { recorder: new MediaRecorder(stream, { mimeType: format.mimeType }), format };
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
-    throw new Error(`動画encoderを開始できません: ${message}`);
+    throw new Error(`Could not start the video encoder: ${message}`);
   }
 }
 
 export async function exportProject({ state, runtime, onProgress, signal }: ExportProjectOptions): Promise<ExportResult> {
-  if (!allVideoClips(state).length) throw new Error("書き出す動画clipがありません");
+  if (!allVideoClips(state).length) throw new Error("There are no video clips to export");
   if (signal?.aborted) throw abortError();
 
   const durationUs = exportDurationUs(state);
-  if (durationUs <= 0) throw new Error("書き出し尺が0秒です");
+  if (durationUs <= 0) throw new Error("Export duration is zero");
 
   const canvas = document.createElement("canvas");
   canvas.width = state.canvas.width;
   canvas.height = state.canvas.height;
   const context = canvas.getContext("2d");
-  if (!context) throw new Error("書き出し用Canvasを初期化できません");
+  if (!context) throw new Error("Could not initialize the export canvas");
   if (typeof canvas.captureStream !== "function") {
-    throw new Error("このブラウザはCanvas動画書き出しに対応していません");
+    throw new Error("This browser does not support canvas-based video export");
   }
 
   const videos = await prepareVideos(state, runtime);
@@ -275,7 +275,7 @@ export async function exportProject({ state, runtime, onProgress, signal }: Expo
       });
       recorder.addEventListener("error", (event) => {
         const detail = event.error?.message ?? "MediaRecorder error";
-        fail(new Error(`動画書き出しに失敗しました: ${detail}`));
+        fail(new Error(`Video export failed: ${detail}`));
       });
       recorder.addEventListener("stop", () => {
         if (settled) return;
@@ -283,7 +283,7 @@ export async function exportProject({ state, runtime, onProgress, signal }: Expo
         cleanupAbort();
         const blob = new Blob(chunks, { type: recorder.mimeType || format.mimeType });
         if (blob.size === 0) {
-          reject(new Error("書き出した動画が空でした"));
+          reject(new Error("The exported video is empty"));
           return;
         }
         resolve({ blob, format, durationUs });

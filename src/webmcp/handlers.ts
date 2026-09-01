@@ -18,7 +18,7 @@ function makeId(prefix: string): string {
 
 function record(value: unknown): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error("tool inputはobjectで指定してください");
+    throw new Error("Tool input must be an object");
   }
   return value as Record<string, unknown>;
 }
@@ -26,7 +26,7 @@ function record(value: unknown): Record<string, unknown> {
 function requiredString(input: Record<string, unknown>, key: string): string {
   const value = input[key];
   if (typeof value !== "string" || value.length === 0) {
-    throw new Error(`${key}は空でないstringで指定してください`);
+    throw new Error(`${key} must be a non-empty string`);
   }
   return value;
 }
@@ -35,21 +35,21 @@ function optionalString(input: Record<string, unknown>, key: string): string | u
   const value = input[key];
   if (value === undefined) return undefined;
   if (typeof value !== "string" || value.length === 0) {
-    throw new Error(`${key}は空でないstringで指定してください`);
+    throw new Error(`${key} must be a non-empty string`);
   }
   return value;
 }
 
 function requiredBoolean(input: Record<string, unknown>, key: string): boolean {
   const value = input[key];
-  if (typeof value !== "boolean") throw new Error(`${key}はbooleanで指定してください`);
+  if (typeof value !== "boolean") throw new Error(`${key} must be a boolean`);
   return value;
 }
 
 function optionalInteger(input: Record<string, unknown>, key: string): number | undefined {
   const value = input[key];
   if (value === undefined) return undefined;
-  if (!Number.isSafeInteger(value)) throw new Error(`${key}は安全な整数で指定してください`);
+  if (!Number.isSafeInteger(value)) throw new Error(`${key} must be a safe integer`);
   return value as number;
 }
 
@@ -57,7 +57,7 @@ function optionalNumber(input: Record<string, unknown>, key: string): number | u
   const value = input[key];
   if (value === undefined) return undefined;
   if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw new Error(`${key}は有限のnumberで指定してください`);
+    throw new Error(`${key} must be a finite number`);
   }
   return value;
 }
@@ -69,7 +69,7 @@ export function getProjectState(controller: EditorController) {
 export function addTrack(controller: EditorController, args: unknown) {
   const input = record(args);
   const kind = requiredString(input, "kind");
-  if (kind !== "video" && kind !== "audio") throw new Error("kindはvideoまたはaudioで指定してください");
+  if (kind !== "video" && kind !== "audio") throw new Error("kind must be video or audio");
   const state = controller.getState();
   const nextNumber = kind === "video" ? getVideoTracks(state).length + 1 : getAudioTracks(state).length + 1;
   const name = optionalString(input, "name") ?? `${kind === "video" ? "V" : "A"}${nextNumber}`;
@@ -89,7 +89,7 @@ export function moveTrack(controller: EditorController, args: unknown) {
   const input = record(args);
   const trackId = requiredString(input, "trackId");
   const toIndex = optionalInteger(input, "toIndex");
-  if (toIndex === undefined) throw new Error("toIndexは必須です");
+  if (toIndex === undefined) throw new Error("toIndex is required");
   controller.execute({ type: "moveTrack", trackId, toIndex });
   return { ok: true, trackId, toIndex };
 }
@@ -98,7 +98,7 @@ export function setTrackOpacity(controller: EditorController, args: unknown) {
   const input = record(args);
   const trackId = requiredString(input, "trackId");
   const opacity = optionalNumber(input, "opacity");
-  if (opacity === undefined) throw new Error("opacityは必須です");
+  if (opacity === undefined) throw new Error("opacity is required");
   controller.execute({ type: "setTrackOpacity", trackId, opacity });
   return { ok: true, trackId, opacity };
 }
@@ -124,7 +124,7 @@ export function addClip(controller: EditorController, args: unknown) {
   const assetId = requiredString(input, "assetId");
   const state = controller.getState();
   const asset = state.assets.find((candidate) => candidate.id === assetId);
-  if (!asset) throw new Error(`Asset ${assetId} が見つかりません`);
+  if (!asset) throw new Error(`Asset ${assetId} was not found`);
 
   const sourceInUs = optionalInteger(input, "sourceInUs") ?? 0;
   const sourceOutUs = optionalInteger(input, "sourceOutUs") ?? asset.durationUs;
@@ -146,7 +146,7 @@ export function moveClip(controller: EditorController, args: unknown) {
   const input = record(args);
   const clipId = requiredString(input, "clipId");
   const toIndex = optionalInteger(input, "toIndex");
-  if (toIndex === undefined) throw new Error("toIndexは必須です");
+  if (toIndex === undefined) throw new Error("toIndex is required");
   controller.execute({ type: "moveClip", clipId, toIndex });
   return { ok: true, clipId, toIndex };
 }
@@ -171,7 +171,7 @@ export function trimClip(controller: EditorController, args: unknown) {
   const sourceInUs = optionalInteger(input, "sourceInUs");
   const sourceOutUs = optionalInteger(input, "sourceOutUs");
   if (sourceInUs === undefined || sourceOutUs === undefined) {
-    throw new Error("sourceInUsとsourceOutUsは必須です");
+    throw new Error("sourceInUs and sourceOutUs are required");
   }
   controller.execute({ type: "trimClip", clipId, sourceInUs, sourceOutUs });
   return { ok: true, clipId, sourceInUs, sourceOutUs };
@@ -190,7 +190,7 @@ export function setClipSpeed(controller: EditorController, args: unknown) {
   const input = record(args);
   const clipId = requiredString(input, "clipId");
   const playbackRate = optionalNumber(input, "playbackRate");
-  if (playbackRate === undefined) throw new Error("playbackRateは必須です");
+  if (playbackRate === undefined) throw new Error("playbackRate is required");
   controller.execute({ type: "setClipSpeed", clipId, playbackRate });
   return { ok: true, clipId, playbackRate };
 }
@@ -201,7 +201,7 @@ export function setClipFade(controller: EditorController, args: unknown) {
   const fadeInUs = optionalInteger(input, "fadeInUs");
   const fadeOutUs = optionalInteger(input, "fadeOutUs");
   if (fadeInUs === undefined || fadeOutUs === undefined) {
-    throw new Error("fadeInUsとfadeOutUsは必須です");
+    throw new Error("fadeInUs and fadeOutUs are required");
   }
   controller.execute({ type: "setClipFade", clipId, fadeInUs, fadeOutUs });
   return { ok: true, clipId, fadeInUs, fadeOutUs };
@@ -220,12 +220,12 @@ export function setAudio(controller: EditorController, args: unknown) {
   const trackId = optionalString(input, "trackId");
   const state = controller.getState();
   const asset = state.assets.find((candidate) => candidate.id === assetId);
-  if (!asset) throw new Error(`Asset ${assetId} が見つかりません`);
+  if (!asset) throw new Error(`Asset ${assetId} was not found`);
 
   const track = trackId
     ? getAudioTracks(state).find((candidate) => candidate.id === trackId)
     : getDefaultAudioTrack(state);
-  if (!track) throw new Error(`Audio track ${trackId ?? "A1"} が見つかりません`);
+  if (!track) throw new Error(`Audio track ${trackId ?? "A1"} was not found`);
   const current = track.clips[0] ?? null;
   const existing = current?.assetId === assetId ? current : null;
   const timelineStartUs = optionalInteger(input, "timelineStartUs") ?? existing?.timelineStartUs ?? 0;
@@ -260,12 +260,12 @@ export function setCanvas(controller: EditorController, args: unknown) {
   const input = record(args);
   const preset = requiredString(input, "preset");
   if (!Object.prototype.hasOwnProperty.call(CANVAS_PRESETS, preset)) {
-    throw new Error("presetはlandscape、portrait、square、portraitFourFiveのいずれかで指定してください");
+    throw new Error("preset must be one of landscape, portrait, square, or portraitFourFive");
   }
 
   const fitMode = input.fitMode ?? controller.getState().canvas.fitMode;
   if (fitMode !== "contain" && fitMode !== "cover") {
-    throw new Error("fitModeはcontainまたはcoverで指定してください");
+    throw new Error("fitMode must be contain or cover");
   }
 
   controller.execute({
