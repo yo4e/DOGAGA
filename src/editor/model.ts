@@ -3,11 +3,14 @@ export type ClipId = string;
 export type TrackId = string;
 export type TransitionId = string;
 
-export type AssetKind = "video" | "audio";
+export type AssetKind = "video" | "audio" | "image";
 export type TrackKind = "video" | "audio";
 
 export const DEFAULT_VIDEO_TRACK_ID = "video-1";
 export const DEFAULT_AUDIO_TRACK_ID = "audio-1";
+export const IMAGE_DEFAULT_DURATION_US = 5_000_000;
+export const IMAGE_MIN_DURATION_US = 100_000;
+export const IMAGE_MAX_DURATION_US = 600_000_000;
 
 export const CANVAS_PRESETS = {
   landscape: { label: "Landscape 16:9", width: 1920, height: 1080 },
@@ -39,6 +42,11 @@ export type AssetDescriptor = {
   height?: number;
 };
 
+/**
+ * V-track clips use one compact representation for both moving video and still images.
+ * For image assets, sourceInUs is always 0, sourceOutUs is the display duration,
+ * and playbackRate is always 1. Image duration is changed through setClipDuration.
+ */
 export type VideoClip = {
   id: ClipId;
   assetId: AssetId;
@@ -121,6 +129,7 @@ export type EditorCommand =
   | { type: "trimClip"; clipId: ClipId; sourceInUs: number; sourceOutUs: number }
   | { type: "splitClip"; clipId: ClipId; atTimelineUs: number; newClipId: ClipId }
   | { type: "setClipSpeed"; clipId: ClipId; playbackRate: number }
+  | { type: "setClipDuration"; clipId: ClipId; durationUs: number }
   | { type: "setClipFade"; clipId: ClipId; fadeInUs: number; fadeOutUs: number }
   | { type: "deleteClip"; clipId: ClipId }
   | { type: "setAudio"; audio: AudioClip | null; trackId?: TrackId }
@@ -250,6 +259,14 @@ export function findAudioClipLocation(state: EditorState, clipId: ClipId): Audio
     }
   }
   return undefined;
+}
+
+export function assetForClip(state: EditorState, clip: Pick<VideoClip, "assetId">): AssetDescriptor | undefined {
+  return state.assets.find((asset) => asset.id === clip.assetId);
+}
+
+export function isImageClip(state: EditorState, clip: Pick<VideoClip, "assetId">): boolean {
+  return assetForClip(state, clip)?.kind === "image";
 }
 
 export function clipDurationUs(
