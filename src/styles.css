@@ -345,6 +345,16 @@ input[type="range"] { accent-color: var(--accent); }
   flex-wrap: wrap;
 }
 
+.inspector-track-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.inspector-track-select select { min-width: 72px; }
+
 .asset-list {
   display: grid;
   gap: 0;

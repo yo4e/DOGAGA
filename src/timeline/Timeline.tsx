@@ -11,8 +11,8 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 import type { EditorController } from "../editor/controller";
 import {
@@ -27,10 +27,9 @@ import {
   timelineDurationUs,
   type EditorState,
   type EditorTrack,
-  type VideoTrack,
 } from "../editor/model";
 import { getTimelineRows, getTimelineTrackMoveIndex } from "./rows";
-import { resolveClipDropIndex } from "./drop";
+import { resolveClipDropIndex, resolvePointerInsertionIndex } from "./drop";
 import "./context-menu.css";
 
 const US = 1_000_000;
@@ -58,6 +57,14 @@ type ClipDropTarget = {
   positionUs: number;
   anchorClipId: string | null;
   side: "before" | "after" | null;
+};
+
+type PointerDrag = {
+  clipId: string;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  active: boolean;
 };
 
 function newId(prefix: string): string {
@@ -91,6 +98,8 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
   const [dragOverTrackId, setDragOverTrackId] = useState<string | null>(null);
   const [clipDropTarget, setClipDropTarget] = useState<ClipDropTarget | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const pointerDragRef = useRef<PointerDrag | null>(null);
+  const clipDropTargetRef = useRef<ClipDropTarget | null>(null);
   const videoTracks = useMemo(() => getVideoTracks(state), [state.tracks]);
   const audioTracks = useMemo(() => getAudioTracks(state), [state.tracks]);
   const rows = useMemo(() => getTimelineRows(state), [state.tracks]);
@@ -182,23 +191,27 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
     });
   };
 
-  const finishDrag = () => {
-    setDraggedClipId(null);
-    setDragOverTrackId(null);
-    setClipDropTarget(null);
+  const updateDropTarget = (target: ClipDropTarget | null) => {
+    clipDropTargetRef.current = target;
+    setClipDropTarget(target);
   };
 
-  const dropDraggedClip = (
-    event: ReactDragEvent<HTMLElement>,
-    targetTrack: VideoTrack,
+  const finishDrag = () => {
+    pointerDragRef.current = null;
+    setDraggedClipId(null);
+    setDragOverTrackId(null);
+    updateDropTarget(null);
+  };
+
+  const moveDraggedClip = (
+    clipId: string,
+    targetTrackId: string,
     insertionIndex: number,
   ) => {
-    event.preventDefault();
-    event.stopPropagation();
-
-    const clipId = draggedClipId || event.dataTransfer.getData("text/plain");
-    const location = clipId ? findVideoClipLocation(state, clipId) : null;
-    if (!clipId || !location) {
+    const currentState = controller.getState();
+    const location = findVideoClipLocation(currentState, clipId);
+    const targetTrack = getVideoTracks(currentState).find((track) => track.id === targetTrackId);
+    if (!location || !targetTrack) {
       finishDrag();
       return;
     }
@@ -224,6 +237,74 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
     }
 
     onSelectClip(clipId);
+    finishDrag();
+  };
+
+  const updatePointerDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const drag = pointerDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+
+    if (!drag.active) {
+      const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+      if (distance < 5) return;
+      drag.active = true;
+      setClipMenu(null);
+      setDraggedClipId(drag.clipId);
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    const lane = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-video-track-id]");
+    const targetTrackId = lane?.dataset.videoTrackId;
+    const targetTrack = targetTrackId ? videoTracks.find((track) => track.id === targetTrackId) : undefined;
+    if (!lane || !targetTrack) {
+      setDragOverTrackId(null);
+      updateDropTarget(null);
+      return;
+    }
+
+    const clipElements = Array.from(lane.querySelectorAll<HTMLElement>("[data-video-clip-id]"));
+    const insertionIndex = resolvePointerInsertionIndex(
+      event.clientX,
+      clipElements.map((element) => {
+        const rect = element.getBoundingClientRect();
+        return rect.left + rect.width / 2;
+      }),
+    );
+    const beforeClip = targetTrack.clips[insertionIndex] ?? null;
+    const lastClip = targetTrack.clips[targetTrack.clips.length - 1] ?? null;
+    const target: ClipDropTarget = beforeClip
+      ? {
+          trackId: targetTrack.id,
+          insertionIndex,
+          positionUs: beforeClip.timelineStartUs,
+          anchorClipId: beforeClip.id,
+          side: "before",
+        }
+      : {
+          trackId: targetTrack.id,
+          insertionIndex,
+          positionUs: lastClip ? lastClip.timelineStartUs + clipDurationUs(lastClip) : 0,
+          anchorClipId: lastClip?.id ?? null,
+          side: lastClip ? "after" : null,
+        };
+    setDragOverTrackId(targetTrack.id);
+    updateDropTarget(target);
+  };
+
+  const finishPointerDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const drag = pointerDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    const target = clipDropTargetRef.current;
+    if (drag.active && target) {
+      event.preventDefault();
+      event.stopPropagation();
+      moveDraggedClip(drag.clipId, target.trackId, target.insertionIndex);
+      return;
+    }
     finishDrag();
   };
 
@@ -372,6 +453,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
             <button
               type="button"
               className="time-ruler"
+              data-playback-shortcut-surface
               aria-label="Choose the playhead position on the timeline"
               onClick={seekFromClick}
             >
@@ -386,42 +468,13 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
               const top = RULER_HEIGHT + rowIndex * TRACK_HEIGHT;
               if (track.kind === "video") {
                 const dragOver = dragOverTrackId === track.id && draggedClipId !== null;
-                const trackEndUs = track.clips.length
-                  ? track.clips[track.clips.length - 1].timelineStartUs
-                    + clipDurationUs(track.clips[track.clips.length - 1])
-                  : 0;
                 return (
                   <div
                     className={`timeline-lane video-lane${track.visible ? "" : " track-disabled"}${dragOver ? " drag-over" : ""}`}
                     key={track.id}
+                    data-video-track-id={track.id}
                     style={{ top }}
                     onClick={seekFromClick}
-                    onDragOver={(event) => {
-                      if (!draggedClipId) return;
-                      event.preventDefault();
-                      event.dataTransfer.dropEffect = "move";
-                      setDragOverTrackId(track.id);
-                      setClipDropTarget({
-                        trackId: track.id,
-                        insertionIndex: track.clips.length,
-                        positionUs: trackEndUs,
-                        anchorClipId: null,
-                        side: null,
-                      });
-                    }}
-                    onDragLeave={(event) => {
-                      const related = event.relatedTarget;
-                      if (related instanceof Node && event.currentTarget.contains(related)) return;
-                      if (dragOverTrackId === track.id) setDragOverTrackId(null);
-                      if (clipDropTarget?.trackId === track.id) setClipDropTarget(null);
-                    }}
-                    onDrop={(event) => dropDraggedClip(
-                      event,
-                      track,
-                      clipDropTarget?.trackId === track.id
-                        ? clipDropTarget.insertionIndex
-                        : track.clips.length,
-                    )}
                   >
                     {track.clips.map((clip, index) => {
                       const asset = state.assets.find((candidate) => candidate.id === clip.assetId);
@@ -433,9 +486,10 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
                       return (
                         <button
                           type="button"
-                          draggable
                           className={`timeline-clip${selectedClipId === clip.id ? " selected" : ""}${draggedClipId === clip.id ? " dragging" : ""}${dropSide ? ` drop-${dropSide}` : ""}`}
                           key={clip.id}
+                          data-playback-shortcut-surface
+                          data-video-clip-id={clip.id}
                           aria-pressed={selectedClipId === clip.id}
                           title={`${asset?.name ?? clip.assetId} · ${(clipDuration / US).toFixed(2)}s · ${clip.playbackRate}× · fade ${fadeLabel(clip.fadeInUs)} / ${fadeLabel(clip.fadeOutUs)} · drag to reorder or move tracks`}
                           style={{
@@ -447,45 +501,22 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
                             event.stopPropagation();
                             onSelectClip(clip.id);
                           }}
-                          onDragStart={(event) => {
-                            event.stopPropagation();
-                            setClipMenu(null);
-                            setDraggedClipId(clip.id);
-                            setDragOverTrackId(track.id);
-                            setClipDropTarget({
-                              trackId: track.id,
-                              insertionIndex: index,
-                              positionUs: clip.timelineStartUs,
-                              anchorClipId: clip.id,
-                              side: "before",
-                            });
-                            event.dataTransfer.effectAllowed = "move";
-                            event.dataTransfer.setData("text/plain", clip.id);
+                          onPointerDown={(event) => {
+                            if (event.button !== 0) return;
+                            pointerDragRef.current = {
+                              clipId: clip.id,
+                              pointerId: event.pointerId,
+                              startX: event.clientX,
+                              startY: event.clientY,
+                              active: false,
+                            };
+                            event.currentTarget.setPointerCapture(event.pointerId);
                           }}
-                          onDragOver={(event) => {
-                            if (!draggedClipId) return;
-                            event.preventDefault();
-                            event.stopPropagation();
-                            event.dataTransfer.dropEffect = "move";
-                            setDragOverTrackId(track.id);
-                            const rect = event.currentTarget.getBoundingClientRect();
-                            const after = event.clientX >= rect.left + rect.width / 2;
-                            setClipDropTarget({
-                              trackId: track.id,
-                              insertionIndex: index + (after ? 1 : 0),
-                              positionUs: after
-                                ? clip.timelineStartUs + clipDuration
-                                : clip.timelineStartUs,
-                              anchorClipId: clip.id,
-                              side: after ? "after" : "before",
-                            });
+                          onPointerMove={updatePointerDrag}
+                          onPointerUp={finishPointerDrag}
+                          onPointerCancel={(event) => {
+                            if (pointerDragRef.current?.pointerId === event.pointerId) finishDrag();
                           }}
-                          onDrop={(event) => {
-                            const rect = event.currentTarget.getBoundingClientRect();
-                            const after = event.clientX >= rect.left + rect.width / 2;
-                            dropDraggedClip(event, track, index + (after ? 1 : 0));
-                          }}
-                          onDragEnd={finishDrag}
                           onContextMenu={(event) => {
                             event.preventDefault();
                             event.stopPropagation();
