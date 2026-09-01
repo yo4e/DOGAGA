@@ -116,6 +116,22 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
   }, [pixelsPerSecond, selectedClipId, state.tracks]);
 
   useEffect(() => {
+    const scroll = scrollRef.current;
+    if (!scroll || scroll.clientWidth <= 0) return;
+
+    const playheadX = (state.playheadUs / US) * pixelsPerSecond;
+    const edgePadding = Math.min(120, Math.max(40, scroll.clientWidth * 0.15));
+    const visibleLeft = scroll.scrollLeft;
+    const visibleRight = visibleLeft + scroll.clientWidth;
+
+    if (playheadX < visibleLeft + edgePadding) {
+      scroll.scrollLeft = Math.max(0, playheadX - edgePadding);
+    } else if (playheadX > visibleRight - edgePadding) {
+      scroll.scrollLeft = Math.max(0, playheadX - scroll.clientWidth + edgePadding);
+    }
+  }, [pixelsPerSecond, state.playheadUs]);
+
+  useEffect(() => {
     if (!clipMenu) return;
     const close = () => setClipMenu(null);
     const onKeyDown = (event: KeyboardEvent) => {
@@ -385,7 +401,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
         </div>
       </div>
 
-      <p className="timeline-help">⌘K / Ctrl+K to split, Shift+D to toggle a dissolve. Right-click a clip to change speed, fades, or its target track.</p>
+      <p className="timeline-help">Space to play/pause, ⌘K / Ctrl+K to split, Shift+D to toggle a dissolve. Right-click a clip to change speed, fades, or its target track.</p>
 
       {clipMenu && menuClip && menuLocation && (
         <div

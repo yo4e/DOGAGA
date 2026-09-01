@@ -131,6 +131,12 @@ function clockLabel(us: number): string {
   return `${[hours, minutes, seconds].map((value) => String(value).padStart(2, "0")).join(":")}.${String(hundredths).padStart(2, "0")}`;
 }
 
+function isPlaybackShortcutTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  return target.closest("input, select, textarea, button, a, [role='button']") !== null;
+}
+
 export function Preview({ state, controller, runtime }: Props) {
   const [playing, setPlaying] = useState(false);
   const [masterVolume, setMasterVolume] = useState(1);
@@ -279,6 +285,27 @@ export function Preview({ state, controller, runtime }: Props) {
     setPlaying(true);
   };
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.defaultPrevented
+        || event.repeat
+        || event.code !== "Space"
+        || event.metaKey
+        || event.ctrlKey
+        || event.altKey
+        || event.shiftKey
+        || isPlaybackShortcutTarget(event.target)
+      ) return;
+
+      event.preventDefault();
+      editorRef.current?.querySelector<HTMLButtonElement>(".transport-play")?.click();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   return (
     <div className="preview-editor" ref={editorRef}>
       <div className="preview-monitor">
@@ -348,7 +375,7 @@ export function Preview({ state, controller, runtime }: Props) {
           <button
             className="transport-play"
             type="button"
-            title={playing ? "Pause" : "Play"}
+            title={playing ? "Pause (Space)" : "Play (Space)"}
             aria-label={playing ? "Pause" : "Play"}
             aria-pressed={playing}
             onClick={togglePlayback}
