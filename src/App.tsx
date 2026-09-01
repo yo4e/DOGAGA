@@ -20,6 +20,7 @@ import { probeMediaFile } from "./media/probe";
 import { Preview } from "./preview/Preview";
 import { Timeline } from "./timeline/Timeline";
 import { WebMCPTools, type AgentActivity } from "./webmcp/WebMCPTools";
+import "./ux-polish.css";
 
 const US = 1_000_000;
 const CANVAS_PRESET_IDS = Object.keys(CANVAS_PRESETS) as CanvasPresetId[];
@@ -314,7 +315,7 @@ function App() {
             <label className="file-picker">
               <span>Select video</span>
               <span className="file-picker-control">
-                <span className="file-picker-button" aria-hidden="true">Choose videos</span>
+                <span className="file-picker-button" aria-hidden="true">Choose</span>
                 <span className="file-picker-status" aria-live="polite">
                   {videoAssetCount
                     ? `${videoAssetCount} video ${videoAssetCount === 1 ? "file" : "files"} loaded`
@@ -333,7 +334,7 @@ function App() {
             <label className="file-picker">
               <span>Select audio</span>
               <span className="file-picker-control">
-                <span className="file-picker-button" aria-hidden="true">Choose audio</span>
+                <span className="file-picker-button" aria-hidden="true">Choose</span>
                 <span className="file-picker-status" aria-live="polite">
                   {audioAssetCount
                     ? `${audioAssetCount} audio ${audioAssetCount === 1 ? "file" : "files"} loaded`
@@ -347,28 +348,6 @@ function App() {
                 aria-label="Select audio file"
                 onChange={(event) => void loadFiles(event.target.files, "audio")}
               />
-            </label>
-            <label>
-              Video target
-              <select
-                value={videoTargetTrack?.id ?? ""}
-                onChange={(event) => setVideoTargetTrackId(event.target.value)}
-              >
-                {videoTracks.map((track) => (
-                  <option key={track.id} value={track.id}>{track.name}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Audio target
-              <select
-                value={audioTargetTrack?.id ?? ""}
-                onChange={(event) => setAudioTargetTrackId(event.target.value)}
-              >
-                {audioTracks.map((track) => (
-                  <option key={track.id} value={track.id}>{track.name}</option>
-                ))}
-              </select>
             </label>
           </div>
           <div
@@ -401,13 +380,31 @@ function App() {
                   <small>{asset.kind} · {seconds(asset.durationUs)}s</small>
                 </div>
                 {asset.kind === "video" ? (
-                  <button type="button" onClick={() => addVideo(asset.id, videoTargetTrack?.id)}>
-                    Add to end of {videoTargetTrack?.name ?? "V1"}
-                  </button>
+                  <div className="asset-card-actions">
+                    <select
+                      aria-label={`Target video track for ${asset.name}`}
+                      value={videoTargetTrack?.id ?? ""}
+                      onChange={(event) => setVideoTargetTrackId(event.target.value)}
+                    >
+                      {videoTracks.map((track) => (
+                        <option key={track.id} value={track.id}>{track.name}</option>
+                      ))}
+                    </select>
+                    <button type="button" onClick={() => addVideo(asset.id, videoTargetTrack?.id)}>Add</button>
+                  </div>
                 ) : (
-                  <button type="button" onClick={() => setAudioTrack(asset.id, audioTargetTrack?.id)}>
-                    Set on {audioTargetTrack?.name ?? "A1"}
-                  </button>
+                  <div className="asset-card-actions">
+                    <select
+                      aria-label={`Target audio track for ${asset.name}`}
+                      value={audioTargetTrack?.id ?? ""}
+                      onChange={(event) => setAudioTargetTrackId(event.target.value)}
+                    >
+                      {audioTracks.map((track) => (
+                        <option key={track.id} value={track.id}>{track.name}</option>
+                      ))}
+                    </select>
+                    <button type="button" onClick={() => setAudioTrack(asset.id, audioTargetTrack?.id)}>Set</button>
+                  </div>
                 )}
               </div>
             ))}
