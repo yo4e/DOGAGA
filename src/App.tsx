@@ -20,7 +20,6 @@ import { probeMediaFile } from "./media/probe";
 import { Preview } from "./preview/Preview";
 import { Timeline } from "./timeline/Timeline";
 import { WebMCPTools, type AgentActivity } from "./webmcp/WebMCPTools";
-import "./ux-polish.css";
 
 const US = 1_000_000;
 const CANVAS_PRESET_IDS = Object.keys(CANVAS_PRESETS) as CanvasPresetId[];
@@ -285,6 +284,7 @@ function App() {
             <label>
               Canvas
               <select
+                name="canvas-preset"
                 value={state.canvas.preset}
                 onChange={(event) => setCanvas(event.target.value as CanvasPresetId, state.canvas.fitMode)}
               >
@@ -296,6 +296,7 @@ function App() {
             <label>
               Source fit
               <select
+                name="canvas-fit"
                 value={state.canvas.fitMode}
                 onChange={(event) => setCanvas(state.canvas.preset, event.target.value as CanvasFitMode)}
               >
@@ -382,6 +383,7 @@ function App() {
                 {asset.kind === "video" ? (
                   <div className="asset-card-actions">
                     <select
+                      name={`video-target-${asset.id}`}
                       aria-label={`Target video track for ${asset.name}`}
                       value={videoTargetTrack?.id ?? ""}
                       onChange={(event) => setVideoTargetTrackId(event.target.value)}
@@ -390,11 +392,14 @@ function App() {
                         <option key={track.id} value={track.id}>{track.name}</option>
                       ))}
                     </select>
-                    <button type="button" onClick={() => addVideo(asset.id, videoTargetTrack?.id)}>Add</button>
+                    <button type="button" onClick={() => addVideo(asset.id, videoTargetTrack?.id)}>
+                      Add to {videoTargetTrack?.name ?? "video track"}
+                    </button>
                   </div>
                 ) : (
                   <div className="asset-card-actions">
                     <select
+                      name={`audio-target-${asset.id}`}
                       aria-label={`Target audio track for ${asset.name}`}
                       value={audioTargetTrack?.id ?? ""}
                       onChange={(event) => setAudioTargetTrackId(event.target.value)}
@@ -403,7 +408,9 @@ function App() {
                         <option key={track.id} value={track.id}>{track.name}</option>
                       ))}
                     </select>
-                    <button type="button" onClick={() => setAudioTrack(asset.id, audioTargetTrack?.id)}>Set</button>
+                    <button type="button" onClick={() => setAudioTrack(asset.id, audioTargetTrack?.id)}>
+                      Set on {audioTargetTrack?.name ?? "audio track"}
+                    </button>
                   </div>
                 )}
               </div>
@@ -483,10 +490,11 @@ function App() {
               <strong>{track.name} audio</strong>
               {clip ? (
                 <>
-                  <span>{state.assets.find((asset) => asset.id === clip.assetId)?.name}</span>
+                  <span className="audio-strip-name">{state.assets.find((asset) => asset.id === clip.assetId)?.name}</span>
                   <label>
                     Start (s)
                     <input
+                      name={`audio-start-${track.id}`}
                       aria-label={`${track.name} start position in seconds`}
                       type="number"
                       min="0"
@@ -505,6 +513,7 @@ function App() {
                   <label>
                     Volume
                     <input
+                      name={`audio-volume-${track.id}`}
                       aria-label={`${track.name} volume`}
                       type="range"
                       min="0"
@@ -528,6 +537,7 @@ function App() {
                 <label>
                   Set audio
                   <select
+                    name={`audio-source-${track.id}`}
                     aria-label={`Audio source for ${track.name}`}
                     defaultValue=""
                     onChange={(event) => {
