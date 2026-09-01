@@ -1,3 +1,25 @@
+button,
+select,
+input[type="number"] {
+  font-size: 12px;
+}
+
+.download-link,
+.export-actions button:first-child {
+  font-size: 13px;
+}
+
+.asset-card strong {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.inspector-summary strong,
+.audio-strip strong,
+.audio-strip-name {
+  font-size: 13px;
+}
+
 .asset-card-actions {
   flex: 0 0 auto;
   display: flex;
@@ -8,11 +30,11 @@
 
 .asset-card-actions select {
   width: auto;
-  min-width: 68px;
+  min-width: 58px;
 }
 
 .asset-card-actions button {
-  min-width: 82px;
+  min-width: 54px;
   padding-inline: 8px;
   white-space: nowrap;
 }
@@ -49,10 +71,10 @@
 }
 
 .track-mini-controls input.track-volume[type="range"] {
-  flex: 1 1 38px;
-  width: auto;
-  min-width: 24px;
-  max-width: 58px;
+  flex: 0 0 38px;
+  width: 38px;
+  min-width: 38px;
+  max-width: 38px;
 }
 
 .track-mini-controls input.track-volume[type="range"]:disabled {
@@ -128,6 +150,15 @@
   .asset-card-actions {
     flex: 1 1 100%;
     width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .track-mini-controls input.track-volume[type="range"] {
+    flex-basis: 22px;
+    width: 22px;
+    min-width: 22px;
+    max-width: 22px;
   }
 }
 
