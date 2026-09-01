@@ -391,9 +391,11 @@ function App() {
                         <option key={track.id} value={track.id}>{track.name}</option>
                       ))}
                     </select>
-                    <button type="button" onClick={() => addVideo(asset.id, videoTargetTrack?.id)}>
-                      Add to {videoTargetTrack?.name ?? "video track"}
-                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Add ${asset.name} to ${videoTargetTrack?.name ?? "video track"}`}
+                      onClick={() => addVideo(asset.id, videoTargetTrack?.id)}
+                    >Add</button>
                   </div>
                 ) : (
                   <div className="asset-card-actions">
@@ -407,9 +409,11 @@ function App() {
                         <option key={track.id} value={track.id}>{track.name}</option>
                       ))}
                     </select>
-                    <button type="button" onClick={() => setAudioTrack(asset.id, audioTargetTrack?.id)}>
-                      Set on {audioTargetTrack?.name ?? "audio track"}
-                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Add ${asset.name} to ${audioTargetTrack?.name ?? "audio track"}`}
+                      onClick={() => setAudioTrack(asset.id, audioTargetTrack?.id)}
+                    >Add</button>
                   </div>
                 )}
               </div>
