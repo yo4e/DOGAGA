@@ -48,6 +48,8 @@ function App() {
   const [activities, setActivities] = useState<AgentActivity[]>([]);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [videoTargetTrackId, setVideoTargetTrackId] = useState<string | null>(null);
+  const [audioTargetTrackId, setAudioTargetTrackId] = useState<string | null>(null);
   const videoClips = useMemo(() => allVideoClips(state), [state.tracks]);
   const videoTracks = useMemo(() => getVideoTracks(state), [state.tracks]);
   const audioTracks = useMemo(() => getAudioTracks(state), [state.tracks]);
@@ -65,6 +67,20 @@ function App() {
       setSelectedClipId(videoClips[0].id);
     }
   }, [selectedClipId, videoClips]);
+
+  useEffect(() => {
+    if (!videoTracks.length) return;
+    if (!videoTargetTrackId || !videoTracks.some((track) => track.id === videoTargetTrackId)) {
+      setVideoTargetTrackId(videoTracks[0].id);
+    }
+  }, [videoTargetTrackId, videoTracks]);
+
+  useEffect(() => {
+    if (!audioTracks.length) return;
+    if (!audioTargetTrackId || !audioTracks.some((track) => track.id === audioTargetTrackId)) {
+      setAudioTargetTrackId(audioTracks[0].id);
+    }
+  }, [audioTargetTrackId, audioTracks]);
 
   const run = (action: () => void): boolean => {
     try {
@@ -190,6 +206,8 @@ function App() {
         (transition) => transition.fromClipId === selectedClip.id && transition.toClipId === nextClip.id,
       )
     : undefined;
+  const videoTargetTrack = videoTracks.find((track) => track.id === videoTargetTrackId) ?? videoTracks[0] ?? null;
+  const audioTargetTrack = audioTracks.find((track) => track.id === audioTargetTrackId) ?? audioTracks[0] ?? null;
   const splitSelectedClip = (): boolean => {
     if (!selectedClip) return false;
     const newClipId = newId("clip");
@@ -362,20 +380,36 @@ function App() {
                   <small>{asset.kind} · {seconds(asset.durationUs)}s</small>
                 </div>
                 {asset.kind === "video" ? (
-                  <div className="asset-card-actions" role="group" aria-label={`Add ${asset.name} to video track`}>
-                    {videoTracks.map((track) => (
-                      <button type="button" key={track.id} onClick={() => addVideo(asset.id, track.id)}>
-                        Add to {track.name}
-                      </button>
-                    ))}
+                  <div className="asset-card-actions">
+                    <select
+                      name={`video-target-${asset.id}`}
+                      aria-label={`Target video track for ${asset.name}`}
+                      value={videoTargetTrack?.id ?? ""}
+                      onChange={(event) => setVideoTargetTrackId(event.target.value)}
+                    >
+                      {videoTracks.map((track) => (
+                        <option key={track.id} value={track.id}>{track.name}</option>
+                      ))}
+                    </select>
+                    <button type="button" onClick={() => addVideo(asset.id, videoTargetTrack?.id)}>
+                      Add to {videoTargetTrack?.name ?? "video track"}
+                    </button>
                   </div>
                 ) : (
-                  <div className="asset-card-actions" role="group" aria-label={`Set ${asset.name} on audio track`}>
-                    {audioTracks.map((track) => (
-                      <button type="button" key={track.id} onClick={() => setAudioTrack(asset.id, track.id)}>
-                        Set on {track.name}
-                      </button>
-                    ))}
+                  <div className="asset-card-actions">
+                    <select
+                      name={`audio-target-${asset.id}`}
+                      aria-label={`Target audio track for ${asset.name}`}
+                      value={audioTargetTrack?.id ?? ""}
+                      onChange={(event) => setAudioTargetTrackId(event.target.value)}
+                    >
+                      {audioTracks.map((track) => (
+                        <option key={track.id} value={track.id}>{track.name}</option>
+                      ))}
+                    </select>
+                    <button type="button" onClick={() => setAudioTrack(asset.id, audioTargetTrack?.id)}>
+                      Set on {audioTargetTrack?.name ?? "audio track"}
+                    </button>
                   </div>
                 )}
               </div>
