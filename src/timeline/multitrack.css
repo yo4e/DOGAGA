@@ -429,4 +429,9 @@
     min-width: 22px;
     height: 24px;
   }
+
+  .track-empty {
+    left: 12px;
+    transform: none;
+  }
 }

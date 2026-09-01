@@ -253,29 +253,61 @@ input[type="range"] { accent-color: var(--accent); }
 .file-row > label:nth-child(-n + 2) { grid-column: 1 / -1; }
 .file-row > label:nth-child(n + 3) { margin-top: 14px; }
 
-input[type="file"] {
-  width: 100%;
+.file-picker {
+  position: relative;
+  cursor: pointer;
+}
+
+.file-picker-control {
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
   color: var(--muted);
   font-size: 12px;
 }
 
-input[type="file"]::file-selector-button {
+.file-picker-button {
+  flex: 0 0 auto;
   min-height: 44px;
-  margin-right: 9px;
+  display: inline-flex;
+  align-items: center;
   padding: 7px 11px;
   border: 1px solid var(--line-strong);
   border-radius: 6px;
   background: var(--surface);
   color: var(--ink);
-  font: inherit;
   font-weight: 700;
-  cursor: pointer;
 }
 
-input[type="file"]:hover::file-selector-button {
+.file-picker-status {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-picker-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.file-picker:hover .file-picker-button {
   border-color: #aeb5bf;
   background: var(--surface-muted);
+}
+
+.file-picker:has(.file-picker-input:focus-visible) .file-picker-button {
+  outline: 3px solid #075fc7;
+  outline-offset: 1px;
+  border-color: var(--accent);
 }
 
 .media-dropzone {

@@ -53,6 +53,8 @@ function App() {
   const videoClips = useMemo(() => allVideoClips(state), [state.tracks]);
   const videoTracks = useMemo(() => getVideoTracks(state), [state.tracks]);
   const audioTracks = useMemo(() => getAudioTracks(state), [state.tracks]);
+  const videoAssetCount = state.assets.filter((asset) => asset.kind === "video").length;
+  const audioAssetCount = state.assets.filter((asset) => asset.kind === "audio").length;
 
   useEffect(() => () => runtime.dispose(), [runtime]);
 
@@ -309,13 +311,42 @@ function App() {
         <section className="panel media-panel media-rail">
           <h2>Media</h2>
           <div className="file-row">
-            <label>
-              Select video
-              <input type="file" accept="video/*" multiple onChange={(event) => void loadFiles(event.target.files, "video")} />
+            <label className="file-picker">
+              <span>Select video</span>
+              <span className="file-picker-control">
+                <span className="file-picker-button" aria-hidden="true">Choose videos</span>
+                <span className="file-picker-status" aria-live="polite">
+                  {videoAssetCount
+                    ? `${videoAssetCount} video ${videoAssetCount === 1 ? "file" : "files"} loaded`
+                    : "No videos loaded"}
+                </span>
+              </span>
+              <input
+                className="file-picker-input"
+                type="file"
+                accept="video/*"
+                multiple
+                aria-label="Select video files"
+                onChange={(event) => void loadFiles(event.target.files, "video")}
+              />
             </label>
-            <label>
-              Select audio
-              <input type="file" accept="audio/*" onChange={(event) => void loadFiles(event.target.files, "audio")} />
+            <label className="file-picker">
+              <span>Select audio</span>
+              <span className="file-picker-control">
+                <span className="file-picker-button" aria-hidden="true">Choose audio</span>
+                <span className="file-picker-status" aria-live="polite">
+                  {audioAssetCount
+                    ? `${audioAssetCount} audio ${audioAssetCount === 1 ? "file" : "files"} loaded`
+                    : "No audio loaded"}
+                </span>
+              </span>
+              <input
+                className="file-picker-input"
+                type="file"
+                accept="audio/*"
+                aria-label="Select audio file"
+                onChange={(event) => void loadFiles(event.target.files, "audio")}
+              />
             </label>
             <label>
               Video target
