@@ -1,4 +1,12 @@
+import { useState, useSyncExternalStore } from "react";
 import { useWebMCP } from "use-webmcp-tool";
+import {
+  PROJECT_DESTINATION_OPTIONS,
+  PROJECT_GOAL_OPTIONS,
+  describeEditPlanOperation,
+  type ProjectDestination,
+  type ProjectGoal,
+} from "../editor/collaboration";
 import type { EditorController } from "../editor/controller";
 import {
   addClip,
@@ -22,6 +30,8 @@ import {
   splitClip,
   trimClip,
 } from "./handlers";
+import { proposeEditPlan } from "./collaborationHandlers";
+import { proposeEditPlanSchema } from "./collaborationSchemas";
 import {
   addClipSchema,
   addTrackSchema,
@@ -44,6 +54,7 @@ import {
   transitionIdSchema,
   trimClipSchema,
 } from "./schemas";
+import "./collaboration.css";
 
 export type AgentActivity = {
   id: string;
@@ -65,6 +76,13 @@ function activityId(): string {
 }
 
 export function WebMCPTools({ controller, onActivity }: Props) {
+  const collaboration = useSyncExternalStore(
+    controller.subscribe,
+    controller.getCollaborationState,
+    controller.getCollaborationState,
+  );
+  const [planError, setPlanError] = useState<string | null>(null);
+
   const execute = (tool: string, handler: (args: unknown) => unknown) => async (args: unknown) => {
     try {
       const result = await handler(args);
@@ -79,7 +97,7 @@ export function WebMCPTools({ controller, onActivity }: Props) {
 
   const getStateTool = useWebMCP({
     name: "get_project_state",
-    description: "Read DOGAGA's current agent-safe editor state, including video/audio tracks, canvas, loaded Asset IDs, clips, transitions, and playhead. Local File handles and object URLs are never returned.",
+    description: "Read DOGAGA's current agent-safe editor state, including the Project Brief / destination, any current reviewable edit plan, video/audio tracks, canvas, loaded Asset IDs, clips, transitions, and playhead. Local File handles and object URLs are never returned. When projectBrief.destination or projectBrief.goal is specific, compare that goal with the live state and proactively point out useful improvements. For a multi-step recommendation that benefits from human review, prefer propose_edit_plan before mutating the timeline unless the human explicitly asks you to apply edits directly.",
     inputSchema: emptySchema,
     execute: execute("get_project_state", () => getProjectState(controller)),
   });
@@ -217,6 +235,13 @@ export function WebMCPTools({ controller, onActivity }: Props) {
     execute: execute("remove_transition", (args) => removeTransition(controller, args)),
   });
 
+  const proposeEditPlanTool = useWebMCP({
+    name: "propose_edit_plan",
+    description: "Submit a validated, non-mutating multi-step editing proposal for the human to review inside DOGAGA. Use this after get_project_state when the Project Brief or live timeline suggests useful improvements, especially for destination-aware recommendations such as Spotify Canvas or vertical short-form output. The proposal does not change the timeline until the human clicks Apply in DOGAGA.",
+    inputSchema: proposeEditPlanSchema,
+    execute: execute("propose_edit_plan", (args) => proposeEditPlan(controller, args)),
+  });
+
   const tools = [
     getStateTool,
     addTrackTool,
@@ -238,18 +263,104 @@ export function WebMCPTools({ controller, onActivity }: Props) {
     setCanvasTool,
     addTransitionTool,
     removeTransitionTool,
+    proposeEditPlanTool,
   ];
   const supported = tools.some((tool) => tool.supported);
   const registered = tools.filter((tool) => tool.registered).length;
   const error = tools.find((tool) => tool.error)?.error;
+  const plan = collaboration.editPlan;
+
+  const applyPlan = () => {
+    if (!plan) return;
+    try {
+      setPlanError(null);
+      controller.applyEditPlan(plan.id);
+    } catch (caught) {
+      setPlanError(caught instanceof Error ? caught.message : String(caught));
+    }
+  };
+
+  const rejectPlan = () => {
+    if (!plan) return;
+    try {
+      setPlanError(null);
+      controller.rejectEditPlan(plan.id);
+    } catch (caught) {
+      setPlanError(caught instanceof Error ? caught.message : String(caught));
+    }
+  };
 
   return (
-    <section className="agent-status" aria-label="WebMCP status" data-supported={supported}>
-      <div>
-        <strong>WebMCP</strong>
-        <span>{supported ? `Connected · ${registered}/${tools.length}` : "Not supported in this browser"}</span>
-      </div>
-      {error && <small role="alert">Registration error: {error.message}</small>}
-    </section>
+    <>
+      <section className="agent-status" aria-label="WebMCP status" data-supported={supported}>
+        <div>
+          <strong>WebMCP</strong>
+          <span>{supported ? `Connected · ${registered}/${tools.length}` : "Not supported in this browser"}</span>
+        </div>
+        <div className="project-brief-controls" aria-label="Project brief">
+          <label>
+            Destination
+            <select
+              aria-label="Project destination"
+              value={collaboration.projectBrief.destination}
+              onChange={(event) => controller.setProjectBrief({
+                ...collaboration.projectBrief,
+                destination: event.target.value as ProjectDestination,
+              })}
+            >
+              {PROJECT_DESTINATION_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Goal
+            <select
+              aria-label="Project goal"
+              value={collaboration.projectBrief.goal}
+              onChange={(event) => controller.setProjectBrief({
+                ...collaboration.projectBrief,
+                goal: event.target.value as ProjectGoal,
+              })}
+            >
+              {PROJECT_GOAL_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {error && <small role="alert">Registration error: {error.message}</small>}
+      </section>
+
+      {plan && (
+        <aside className={`agent-suggestion ${plan.status}`} aria-label="Agent edit suggestion">
+          <div className="agent-suggestion-heading">
+            <span>Agent suggestion</span>
+            <small>{plan.status}</small>
+          </div>
+          <h3>{plan.title}</h3>
+          <p className="agent-suggestion-reason">{plan.reason}</p>
+          <ol>
+            {plan.operations.map((operation, index) => (
+              <li key={`${plan.id}-${index}`}>{describeEditPlanOperation(controller.getState(), operation)}</li>
+            ))}
+          </ol>
+          {planError && <p className="agent-plan-error" role="alert">{planError}</p>}
+          {plan.status === "pending" ? (
+            <div className="agent-suggestion-actions">
+              <button type="button" onClick={rejectPlan}>Reject</button>
+              <button className="apply-plan" type="button" onClick={applyPlan}>Apply</button>
+            </div>
+          ) : (
+            <div className="agent-suggestion-actions">
+              <p className="agent-plan-status">
+                {plan.status === "applied" ? "Applied to the shared timeline." : "Rejected by the human."}
+              </p>
+              <button type="button" onClick={() => controller.dismissEditPlan(plan.id)}>Dismiss</button>
+            </div>
+          )}
+        </aside>
+      )}
+    </>
   );
 }
