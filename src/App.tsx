@@ -53,7 +53,7 @@ function App() {
   const videoClips = useMemo(() => allVideoClips(state), [state.tracks]);
   const videoTracks = useMemo(() => getVideoTracks(state), [state.tracks]);
   const audioTracks = useMemo(() => getAudioTracks(state), [state.tracks]);
-  const videoAssetCount = state.assets.filter((asset) => asset.kind === "video").length;
+  const visualAssetCount = state.assets.filter((asset) => asset.kind === "video" || asset.kind === "image").length;
   const audioAssetCount = state.assets.filter((asset) => asset.kind === "audio").length;
 
   useEffect(() => () => runtime.dispose(), [runtime]);
@@ -128,13 +128,25 @@ function App() {
     await registerMediaFiles(Array.from(files, (file) => ({ file, kind })));
   };
 
+  const loadVisualFiles = async (files: FileList | null) => {
+    if (!files?.length) return;
+    const entries: Array<{ file: File; kind: AssetKind }> = [];
+    const unsupported: string[] = [];
+    for (const file of Array.from(files)) {
+      const kind = inferAssetKind(file);
+      if (kind === "video" || kind === "image") entries.push({ file, kind });
+      else unsupported.push(`${file.name}: Choose a supported video, PNG, JPEG, or WebP image`);
+    }
+    await registerMediaFiles(entries, unsupported);
+  };
+
   const loadDroppedFiles = async (files: FileList) => {
     const entries: Array<{ file: File; kind: AssetKind }> = [];
     const unsupported: string[] = [];
     for (const file of Array.from(files)) {
       const kind = inferAssetKind(file);
       if (kind) entries.push({ file, kind });
-      else unsupported.push(`${file.name}: Unsupported video or audio file`);
+      else unsupported.push(`${file.name}: Unsupported video, image, or audio file`);
     }
     await registerMediaFiles(entries, unsupported);
   };
@@ -146,9 +158,9 @@ function App() {
     void loadDroppedFiles(event.dataTransfer.files);
   };
 
-  const addVideo = (assetId: string, trackId?: string) => {
+  const addVisual = (assetId: string, trackId?: string) => {
     const asset = state.assets.find((item) => item.id === assetId);
-    if (!asset || asset.kind !== "video") return;
+    if (!asset || (asset.kind !== "video" && asset.kind !== "image")) return;
     const clipId = newId("clip");
     if (run(() =>
       controller.execute({
@@ -200,6 +212,10 @@ function App() {
   const selectedClip = selectedLocation?.clip ?? null;
   const selectedIndex = selectedLocation?.clipIndex ?? -1;
   const selectedTrack = selectedLocation?.track ?? null;
+  const selectedAsset = selectedClip
+    ? state.assets.find((asset) => asset.id === selectedClip.assetId) ?? null
+    : null;
+  const selectedIsImage = selectedAsset?.kind === "image";
   const nextClip = selectedTrack && selectedIndex >= 0 ? selectedTrack.clips[selectedIndex + 1] : undefined;
   const selectedTransition = selectedClip && nextClip
     ? state.transitions.find(
@@ -209,7 +225,7 @@ function App() {
   const videoTargetTrack = videoTracks.find((track) => track.id === videoTargetTrackId) ?? videoTracks[0] ?? null;
   const audioTargetTrack = audioTracks.find((track) => track.id === audioTargetTrackId) ?? audioTracks[0] ?? null;
   const splitSelectedClip = (): boolean => {
-    if (!selectedClip) return false;
+    if (!selectedClip || selectedIsImage) return false;
     const newClipId = newId("clip");
     const didSplit = run(() => controller.execute({
       type: "splitClip",
@@ -247,7 +263,7 @@ function App() {
       const key = event.key.toLowerCase();
 
       if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && key === "k") {
-        if (!selectedClip) return;
+        if (!selectedClip || selectedIsImage) return;
         event.preventDefault();
         splitSelectedClip();
         return;
@@ -262,7 +278,7 @@ function App() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selectedClip, nextClip, selectedTransition, state.playheadUs]);
+  }, [selectedClip, selectedIsImage, nextClip, selectedTransition, state.playheadUs]);
 
   const setCanvas = (preset: CanvasPresetId, fitMode: CanvasFitMode) => {
     run(() => controller.execute({ type: "setCanvas", preset, fitMode }));
@@ -313,22 +329,22 @@ function App() {
           <h2>Media</h2>
           <div className="file-row">
             <label className="file-picker">
-              <span>Select video</span>
+              <span>Select video / image</span>
               <span className="file-picker-control">
                 <span className="file-picker-button" aria-hidden="true">Choose</span>
                 <span className="file-picker-status" aria-live="polite">
-                  {videoAssetCount
-                    ? `${videoAssetCount} video ${videoAssetCount === 1 ? "file" : "files"} loaded`
-                    : "No videos loaded"}
+                  {visualAssetCount
+                    ? `${visualAssetCount} visual ${visualAssetCount === 1 ? "file" : "files"} loaded`
+                    : "No videos or images loaded"}
                 </span>
               </span>
               <input
                 className="file-picker-input"
                 type="file"
-                accept="video/*"
+                accept="video/*,image/png,image/jpeg,image/webp"
                 multiple
-                aria-label="Select video files"
-                onChange={(event) => void loadFiles(event.target.files, "video")}
+                aria-label="Select video or image files"
+                onChange={(event) => void loadVisualFiles(event.target.files)}
               />
             </label>
             <label className="file-picker">
@@ -352,7 +368,7 @@ function App() {
           </div>
           <div
             className={`media-dropzone${dragActive ? " drag-active" : ""}`}
-            aria-label="Video or audio file drop zone"
+            aria-label="Video, image, or audio file drop zone"
             onDragEnter={(event) => {
               if (!Array.from(event.dataTransfer.types).includes("Files")) return;
               event.preventDefault();
@@ -370,16 +386,16 @@ function App() {
             onDrop={onMediaDrop}
           >
             <strong>{loading ? "Reading media metadata…" : "Drag & drop files here"}</strong>
-            <span>Examples: WebM, MP4, MP3, WAV</span>
+            <span>Examples: WebM, MP4, PNG, JPEG, WebP, MP3, WAV</span>
           </div>
           <div className="asset-list">
             {state.assets.map((asset) => (
               <div className="asset-card" key={asset.id}>
                 <div>
                   <strong>{asset.name}</strong>
-                  <small>{asset.kind} · {seconds(asset.durationUs)}s</small>
+                  <small>{asset.kind} · {seconds(asset.durationUs)}s{asset.kind === "image" ? " default" : ""}</small>
                 </div>
-                {asset.kind === "video" ? (
+                {asset.kind !== "audio" ? (
                   <div className="asset-card-actions">
                     <select
                       name={`video-target-${asset.id}`}
@@ -394,7 +410,7 @@ function App() {
                     <button
                       type="button"
                       aria-label={`Add ${asset.name} to ${videoTargetTrack?.name ?? "video track"}`}
-                      onClick={() => addVideo(asset.id, videoTargetTrack?.id)}
+                      onClick={() => addVisual(asset.id, videoTargetTrack?.id)}
                     >Add</button>
                   </div>
                 ) : (
@@ -442,12 +458,13 @@ function App() {
         {selectedClip && selectedTrack ? (
           <div className="clip-inspector">
             <div className="inspector-summary">
-              <small>Selected clip · {selectedTrack.name}</small>
-              <strong>{state.assets.find((asset) => asset.id === selectedClip.assetId)?.name ?? selectedClip.assetId}</strong>
+              <small>Selected {selectedIsImage ? "still" : "clip"} · {selectedTrack.name}</small>
+              <strong>{selectedAsset?.name ?? selectedClip.assetId}</strong>
               <span>
                 {seconds(selectedClip.timelineStartUs)}s → {seconds(selectedClip.timelineStartUs + clipDurationUs(selectedClip))}s
-                · Source {seconds(selectedClip.sourceInUs)}–{seconds(selectedClip.sourceOutUs)}s
-                · Speed {selectedClip.playbackRate}×
+                {selectedIsImage
+                  ? ` · Still duration ${seconds(clipDurationUs(selectedClip))}s`
+                  : ` · Source ${seconds(selectedClip.sourceInUs)}–${seconds(selectedClip.sourceOutUs)}s · Speed ${selectedClip.playbackRate}×`}
               </span>
             </div>
             <div className="button-row inspector-actions">
@@ -467,6 +484,29 @@ function App() {
                   ))}
                 </select>
               </label>
+              {selectedIsImage && (
+                <label className="inspector-track-select">
+                  Duration (s)
+                  <input
+                    name={`still-duration-${selectedClip.id}`}
+                    aria-label={`Still image duration for ${selectedAsset?.name ?? selectedClip.id} in seconds`}
+                    type="number"
+                    min="0.1"
+                    max="600"
+                    step="0.1"
+                    value={seconds(clipDurationUs(selectedClip))}
+                    onChange={(event) => {
+                      const value = Number(event.target.value);
+                      if (!Number.isFinite(value)) return;
+                      run(() => controller.execute({
+                        type: "setClipDuration",
+                        clipId: selectedClip.id,
+                        durationUs: Math.round(value * US),
+                      }));
+                    }}
+                  />
+                </label>
+              )}
               <button
                 type="button"
                 disabled={selectedIndex === 0}
@@ -477,9 +517,13 @@ function App() {
                 disabled={selectedIndex === selectedTrack.clips.length - 1}
                 onClick={() => run(() => controller.execute({ type: "moveClip", clipId: selectedClip.id, toIndex: selectedIndex + 1 }))}
               >Move later</button>
-              <button type="button" onClick={splitSelectedClip}>Split at playhead</button>
-              <button type="button" onClick={() => trim(selectedClip, "in")}>Trim 0.1s from start</button>
-              <button type="button" onClick={() => trim(selectedClip, "out")}>Trim 0.1s from end</button>
+              {!selectedIsImage && (
+                <>
+                  <button type="button" onClick={splitSelectedClip}>Split at playhead</button>
+                  <button type="button" onClick={() => trim(selectedClip, "in")}>Trim 0.1s from start</button>
+                  <button type="button" onClick={() => trim(selectedClip, "out")}>Trim 0.1s from end</button>
+                </>
+              )}
               <button className="danger-button" type="button" onClick={() => run(() => controller.execute({ type: "deleteClip", clipId: selectedClip.id }))}>Delete</button>
             </div>
             {nextClip && (
@@ -499,7 +543,7 @@ function App() {
             )}
           </div>
         ) : (
-          <p className="muted inspector-empty">Select a video clip to show move, trim, delete, and dissolve controls.</p>
+          <p className="muted inspector-empty">Select a visual clip to show move, trim/duration, delete, and dissolve controls.</p>
         )}
 
         {audioTracks.map((track) => {
