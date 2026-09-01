@@ -1,5 +1,16 @@
 import { EditorCommandError, executeCommand } from "./executor";
 import {
+  cloneEditPlan,
+  createEmptyCollaborationState,
+  isProjectDestination,
+  isProjectGoal,
+  simulateEditPlan,
+  type AgentEditPlan,
+  type CollaborationState,
+  type EditPlanOperation,
+  type ProjectBrief,
+} from "./collaboration";
+import {
   createEmptyEditorState,
   timelineDurationUs,
   type AssetDescriptor,
@@ -45,13 +56,27 @@ function publicCommandErrorMessage(code: string): string {
   return messages[code] ?? `Editor command failed (${code}).`;
 }
 
+function normalizeCommandError(caught: unknown): never {
+  if (caught instanceof EditorCommandError) {
+    throw new EditorCommandError(caught.code, publicCommandErrorMessage(caught.code));
+  }
+  throw caught;
+}
+
 export class EditorController {
   private state: EditorState = createEmptyEditorState();
+  private collaboration: CollaborationState = createEmptyCollaborationState();
   private readonly listeners = new Set<Listener>();
 
   readonly getState = (): EditorState => this.state;
 
-  readonly getSafeState = () => toSafeEditorState(this.state);
+  readonly getCollaborationState = (): CollaborationState => this.collaboration;
+
+  readonly getSafeState = () => ({
+    ...toSafeEditorState(this.state),
+    projectBrief: { ...this.collaboration.projectBrief },
+    editPlan: cloneEditPlan(this.collaboration.editPlan),
+  });
 
   readonly subscribe = (listener: Listener): (() => void) => {
     this.listeners.add(listener);
@@ -69,20 +94,107 @@ export class EditorController {
     this.emit();
   }
 
+  setProjectBrief(brief: ProjectBrief): void {
+    if (!isProjectDestination(brief.destination)) {
+      throw new Error("Unsupported project destination");
+    }
+    if (!isProjectGoal(brief.goal)) {
+      throw new Error("Unsupported project goal");
+    }
+    if (
+      brief.destination === this.collaboration.projectBrief.destination
+      && brief.goal === this.collaboration.projectBrief.goal
+    ) return;
+    this.collaboration = {
+      ...this.collaboration,
+      projectBrief: { ...brief },
+    };
+    this.emit();
+  }
+
+  proposeEditPlan(input: {
+    id: string;
+    title: string;
+    reason: string;
+    operations: EditPlanOperation[];
+  }): AgentEditPlan {
+    const title = input.title.trim();
+    const reason = input.reason.trim();
+    if (!input.id.trim()) throw new Error("Edit plan ID is required");
+    if (!title) throw new Error("Edit plan title is required");
+    if (!reason) throw new Error("Edit plan reason is required");
+    if (input.operations.length < 1 || input.operations.length > 8) {
+      throw new Error("Edit plan must contain between 1 and 8 operations");
+    }
+
+    try {
+      simulateEditPlan(this.state, input.operations);
+    } catch (caught) {
+      normalizeCommandError(caught);
+    }
+
+    const editPlan: AgentEditPlan = {
+      id: input.id,
+      title,
+      reason,
+      operations: input.operations.map((operation) => ({ ...operation })),
+      status: "pending",
+      createdAt: Date.now(),
+    };
+    this.collaboration = { ...this.collaboration, editPlan };
+    this.emit();
+    return cloneEditPlan(editPlan)!;
+  }
+
+  applyEditPlan(planId: string): AgentEditPlan {
+    const plan = this.collaboration.editPlan;
+    if (!plan || plan.id !== planId) throw new Error("The requested edit plan was not found");
+    if (plan.status !== "pending") throw new Error(`The edit plan is already ${plan.status}`);
+
+    let next: EditorState;
+    try {
+      next = simulateEditPlan(this.state, plan.operations);
+    } catch (caught) {
+      normalizeCommandError(caught);
+    }
+
+    this.state = {
+      ...next!,
+      playheadUs: Math.min(next!.playheadUs, timelineDurationUs(next!)),
+    };
+    const editPlan: AgentEditPlan = { ...plan, status: "applied", resolvedAt: Date.now() };
+    this.collaboration = { ...this.collaboration, editPlan };
+    this.emit();
+    return cloneEditPlan(editPlan)!;
+  }
+
+  rejectEditPlan(planId: string): AgentEditPlan {
+    const plan = this.collaboration.editPlan;
+    if (!plan || plan.id !== planId) throw new Error("The requested edit plan was not found");
+    if (plan.status !== "pending") throw new Error(`The edit plan is already ${plan.status}`);
+    const editPlan: AgentEditPlan = { ...plan, status: "rejected", resolvedAt: Date.now() };
+    this.collaboration = { ...this.collaboration, editPlan };
+    this.emit();
+    return cloneEditPlan(editPlan)!;
+  }
+
+  dismissEditPlan(planId: string): void {
+    if (this.collaboration.editPlan?.id !== planId) return;
+    this.collaboration = { ...this.collaboration, editPlan: null };
+    this.emit();
+  }
+
   execute(command: EditorCommand): EditorState {
     let next: EditorState;
     try {
       next = executeCommand(this.state, command);
     } catch (caught) {
-      if (caught instanceof EditorCommandError) {
-        throw new EditorCommandError(caught.code, publicCommandErrorMessage(caught.code));
-      }
-      throw caught;
+      normalizeCommandError(caught);
     }
-    if (next !== this.state) {
+    if (next! !== this.state) {
       this.state = {
-        ...next,
-        playheadUs: Math.min(next.playheadUs, timelineDurationUs(next)),
+        ...next!,
+        playheadUs: Math.min(next!.playheadUs, timelineDurationUs(next!)),
       };
       this.emit();
     }
