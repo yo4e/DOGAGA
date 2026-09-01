@@ -155,7 +155,7 @@ export function computeDrawRegion(
     sw: sourceWidth,
     sh,
     dx: 0,
-    dy: (canvasHeight - sh) / 2,
+    dy: 0,
     dw: canvasWidth,
     dh: canvasHeight,
   };
