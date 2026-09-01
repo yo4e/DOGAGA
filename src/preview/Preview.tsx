@@ -9,7 +9,7 @@ import { SkipBackIcon } from "@phosphor-icons/react/SkipBack";
 import { SkipForwardIcon } from "@phosphor-icons/react/SkipForward";
 import { SpeakerHighIcon } from "@phosphor-icons/react/SpeakerHigh";
 import { SpeakerSlashIcon } from "@phosphor-icons/react/SpeakerSlash";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { EditorController } from "../editor/controller";
 import {
   allVideoClips,
@@ -134,16 +134,18 @@ function clockLabel(us: number): string {
 function isPlaybackShortcutTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   if (target.isContentEditable) return true;
-  return target.closest("input, select, textarea, button, a, [role='button']") !== null;
+  return target.closest("input, select, textarea, button, a, summary, [role='button']") !== null;
 }
 
 export function Preview({ state, controller, runtime }: Props) {
   const [playing, setPlaying] = useState(false);
   const [masterVolume, setMasterVolume] = useState(1);
   const [fullscreen, setFullscreen] = useState(false);
+  const [stageFit, setStageFit] = useState<"width" | "height">("height");
   const clockRef = useRef<Clock | null>(null);
   const audioRefs = useRef(new Map<string, HTMLAudioElement>());
   const editorRef = useRef<HTMLDivElement>(null);
+  const monitorRef = useRef<HTMLDivElement>(null);
   const lastAudibleVolumeRef = useRef(1);
   const durationUs = timelineDurationUs(state);
 
@@ -258,6 +260,27 @@ export function Preview({ state, controller, runtime }: Props) {
     return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
   }, []);
 
+  useLayoutEffect(() => {
+    const monitor = monitorRef.current;
+    if (!monitor) return;
+
+    const canvasRatio = state.canvas.width / state.canvas.height;
+    const updateStageFit = () => {
+      const rect = monitor.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      setStageFit(rect.width / rect.height < canvasRatio ? "width" : "height");
+    };
+
+    updateStageFit();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", updateStageFit);
+      return () => window.removeEventListener("resize", updateStageFit);
+    }
+    const observer = new ResizeObserver(updateStageFit);
+    observer.observe(monitor);
+    return () => observer.disconnect();
+  }, [state.canvas.height, state.canvas.width]);
+
   const startAudiosAt = (startUs: number) => {
     for (const layer of audioLayers) {
       const audio = audioRefs.current.get(layer.clip.id);
@@ -308,7 +331,12 @@ export function Preview({ state, controller, runtime }: Props) {
 
   return (
     <div className="preview-editor" ref={editorRef}>
-      <div className="preview-monitor">
+      <div
+        className="preview-monitor"
+        data-canvas-preset={state.canvas.preset}
+        data-stage-fit={stageFit}
+        ref={monitorRef}
+      >
         <div
           className="preview-stage"
           aria-label={`${state.canvas.width}×${state.canvas.height} video preview`}

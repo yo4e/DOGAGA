@@ -20,7 +20,6 @@ import { probeMediaFile } from "./media/probe";
 import { Preview } from "./preview/Preview";
 import { Timeline } from "./timeline/Timeline";
 import { WebMCPTools, type AgentActivity } from "./webmcp/WebMCPTools";
-import "./ux-polish.css";
 
 const US = 1_000_000;
 const CANVAS_PRESET_IDS = Object.keys(CANVAS_PRESETS) as CanvasPresetId[];
@@ -390,7 +389,9 @@ function App() {
                         <option key={track.id} value={track.id}>{track.name}</option>
                       ))}
                     </select>
-                    <button type="button" onClick={() => addVideo(asset.id, videoTargetTrack?.id)}>Add</button>
+                    <button type="button" onClick={() => addVideo(asset.id, videoTargetTrack?.id)}>
+                      Add to {videoTargetTrack?.name ?? "video track"}
+                    </button>
                   </div>
                 ) : (
                   <div className="asset-card-actions">
@@ -403,7 +404,9 @@ function App() {
                         <option key={track.id} value={track.id}>{track.name}</option>
                       ))}
                     </select>
-                    <button type="button" onClick={() => setAudioTrack(asset.id, audioTargetTrack?.id)}>Set</button>
+                    <button type="button" onClick={() => setAudioTrack(asset.id, audioTargetTrack?.id)}>
+                      Set on {audioTargetTrack?.name ?? "audio track"}
+                    </button>
                   </div>
                 )}
               </div>
@@ -483,7 +486,7 @@ function App() {
               <strong>{track.name} audio</strong>
               {clip ? (
                 <>
-                  <span>{state.assets.find((asset) => asset.id === clip.assetId)?.name}</span>
+                  <span className="audio-strip-name">{state.assets.find((asset) => asset.id === clip.assetId)?.name}</span>
                   <label>
                     Start (s)
                     <input
