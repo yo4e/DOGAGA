@@ -1,13 +1,17 @@
 import { EditorCommandError, executeCommand } from "./executor";
 import {
   cloneEditPlan,
+  cloneEditorStateForDemonstration,
+  cloneHumanDemonstration,
   createEmptyCollaborationState,
+  createHumanDemonstrationChanges,
   isProjectDestination,
   isProjectGoal,
   simulateEditPlan,
   type AgentEditPlan,
   type CollaborationState,
   type EditPlanOperation,
+  type HumanDemonstration,
   type ProjectBrief,
 } from "./collaboration";
 import {
@@ -20,6 +24,12 @@ import {
 import { toSafeEditorState } from "./safeState";
 
 type Listener = () => void;
+
+function makeCollaborationId(prefix: string): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? `${prefix}-${crypto.randomUUID()}`
+    : `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 function publicCommandErrorMessage(code: string): string {
   const messages: Record<string, string> = {
@@ -70,6 +80,7 @@ function normalizeCommandError(caught: unknown): never {
 export class EditorController {
   private state: EditorState = createEmptyEditorState();
   private collaboration: CollaborationState = createEmptyCollaborationState();
+  private humanDemonstrationSnapshot: EditorState | null = null;
   private readonly listeners = new Set<Listener>();
 
   readonly getState = (): EditorState => this.state;
@@ -80,6 +91,7 @@ export class EditorController {
     ...toSafeEditorState(this.state),
     projectBrief: { ...this.collaboration.projectBrief },
     editPlan: cloneEditPlan(this.collaboration.editPlan),
+    humanDemonstration: cloneHumanDemonstration(this.collaboration.humanDemonstration),
   });
 
   readonly subscribe = (listener: Listener): (() => void) => {
@@ -113,6 +125,53 @@ export class EditorController {
       ...this.collaboration,
       projectBrief: { ...brief },
     };
+    this.emit();
+  }
+
+  startHumanDemonstration(): HumanDemonstration {
+    if (this.humanDemonstrationSnapshot || this.collaboration.humanDemonstration?.status === "recording") {
+      throw new Error("A human demonstration is already being recorded");
+    }
+    const startedAt = Date.now();
+    this.humanDemonstrationSnapshot = cloneEditorStateForDemonstration(this.state);
+    const humanDemonstration: HumanDemonstration = {
+      id: makeCollaborationId("human-demo"),
+      status: "recording",
+      startedAt,
+      changes: [],
+    };
+    this.collaboration = { ...this.collaboration, humanDemonstration };
+    this.emit();
+    return cloneHumanDemonstration(humanDemonstration)!;
+  }
+
+  finishHumanDemonstration(): HumanDemonstration {
+    const before = this.humanDemonstrationSnapshot;
+    const current = this.collaboration.humanDemonstration;
+    if (!before || !current || current.status !== "recording") {
+      throw new Error("No human demonstration is currently being recorded");
+    }
+
+    const changes = createHumanDemonstrationChanges(before, this.state);
+    this.humanDemonstrationSnapshot = null;
+    const humanDemonstration: HumanDemonstration = {
+      ...current,
+      status: changes.length ? "ready" : "empty",
+      recordedAt: Date.now(),
+      changes,
+    };
+    this.collaboration = { ...this.collaboration, humanDemonstration };
+    this.emit();
+    return cloneHumanDemonstration(humanDemonstration)!;
+  }
+
+  dismissHumanDemonstration(): void {
+    if (!this.collaboration.humanDemonstration) return;
+    if (this.collaboration.humanDemonstration.status === "recording") {
+      throw new Error("Stop teaching before dismissing the demonstration");
+    }
+    this.humanDemonstrationSnapshot = null;
+    this.collaboration = { ...this.collaboration, humanDemonstration: null };
     this.emit();
   }
 

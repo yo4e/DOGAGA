@@ -11,19 +11,20 @@ export const proposeEditPlanSchema = {
       type: "string",
       minLength: 1,
       maxLength: 500,
-      description: "Explain why this plan fits the project brief and current live state.",
+      description: "Explain why this plan fits the project brief, human demonstration, or current live state.",
     },
     operations: {
       type: "array",
       minItems: 1,
       maxItems: 8,
-      description: "Structured editing operations. The handler validates the fields required for each operation type against the live DOGAGA state.",
+      description: "Structured editing operations. The handler validates the fields required for each operation type against the live DOGAGA state. add_visual_clip uses a loaded visual asset ID plus an existing video track and can carry the demonstrated still duration, playback rate, and fades.",
       items: {
         type: "object",
         properties: {
           type: {
             type: "string",
             enum: [
+              "add_visual_clip",
               "set_canvas",
               "set_track_opacity",
               "set_track_visibility",
@@ -32,9 +33,11 @@ export const proposeEditPlanSchema = {
               "move_clip_to_track",
               "trim_clip",
               "set_clip_speed",
+              "set_still_duration",
               "set_clip_fade",
             ],
           },
+          assetId: { type: "string" },
           preset: { type: "string", enum: ["landscape", "portrait", "square", "portraitFourFive"] },
           fitMode: { type: "string", enum: ["contain", "cover"] },
           trackId: { type: "string" },
@@ -46,6 +49,7 @@ export const proposeEditPlanSchema = {
           sourceInUs: { type: "integer", minimum: 0 },
           sourceOutUs: { type: "integer", minimum: 1 },
           playbackRate: { type: "number", enum: [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2] },
+          durationUs: { type: "integer", minimum: 100000, maximum: 600000000 },
           fadeInUs: { type: "integer", enum: [0, 250000, 500000, 1000000, 2000000] },
           fadeOutUs: { type: "integer", enum: [0, 250000, 500000, 1000000, 2000000] },
         },

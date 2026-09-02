@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { EditorController } from "../editor/controller";
+import { IMAGE_DEFAULT_DURATION_US, getVideoTracks } from "../editor/model";
 import { proposeEditPlan } from "./collaborationHandlers";
 
 const S = 1_000_000;
@@ -35,6 +36,87 @@ describe("propose_edit_plan handler", () => {
     expect(controller.getSafeState().editPlan).toMatchObject({
       title: "Optimize for Spotify Canvas",
       status: "pending",
+    });
+  });
+
+  it("accepts still-image duration as a reviewable edit-plan operation", () => {
+    const controller = new EditorController();
+    controller.registerAsset({
+      id: "image-1",
+      kind: "image",
+      name: "cover.png",
+      durationUs: IMAGE_DEFAULT_DURATION_US,
+      width: 1200,
+      height: 1200,
+    });
+    controller.execute({
+      type: "addClip",
+      clip: {
+        id: "still-1",
+        assetId: "image-1",
+        sourceInUs: 0,
+        sourceOutUs: IMAGE_DEFAULT_DURATION_US,
+      },
+    });
+
+    const result = proposeEditPlan(controller, {
+      title: "Repeat the demonstrated still treatment",
+      reason: "The human example used a 3 second still duration.",
+      operations: [{ type: "set_still_duration", clipId: "still-1", durationUs: 3 * S }],
+    });
+
+    expect(result).toMatchObject({ ok: true, status: "pending", operationCount: 1 });
+    expect(controller.getSafeState().editPlan).toMatchObject({
+      operations: [{ type: "set_still_duration", clipId: "still-1", durationUs: 3 * S }],
+    });
+    controller.applyEditPlan(controller.getSafeState().editPlan!.id);
+    expect(controller.getState().tracks[0].clips[0]).toMatchObject({ sourceOutUs: 3 * S });
+  });
+
+  it("adds a loaded still through a reviewable plan without mutating before Apply", () => {
+    const controller = new EditorController();
+    controller.registerAsset({
+      id: "image-1",
+      kind: "image",
+      name: "other.png",
+      durationUs: IMAGE_DEFAULT_DURATION_US,
+      width: 1200,
+      height: 1200,
+    });
+    controller.execute({ type: "addTrack", track: { id: "video-2", kind: "video", name: "V2" } });
+
+    const result = proposeEditPlan(controller, {
+      title: "Apply the demonstrated overlay treatment",
+      reason: "The human added a 3 second still to V2 with a half-second fade.",
+      operations: [{
+        type: "add_visual_clip",
+        assetId: "image-1",
+        trackId: "video-2",
+        durationUs: 3 * S,
+        fadeInUs: 500_000,
+        fadeOutUs: 500_000,
+      }],
+    });
+
+    expect(result).toMatchObject({ ok: true, status: "pending", operationCount: 1 });
+    expect(getVideoTracks(controller.getState()).find((track) => track.id === "video-2")?.clips).toHaveLength(0);
+    const plan = controller.getSafeState().editPlan!;
+    expect(plan.operations[0]).toMatchObject({
+      type: "add_visual_clip",
+      assetId: "image-1",
+      trackId: "video-2",
+      durationUs: 3 * S,
+      fadeInUs: 500_000,
+      fadeOutUs: 500_000,
+    });
+    expect((plan.operations[0] as { clipId?: string }).clipId).toMatch(/^plan-clip-/);
+
+    controller.applyEditPlan(plan.id);
+    expect(getVideoTracks(controller.getState()).find((track) => track.id === "video-2")?.clips[0]).toMatchObject({
+      assetId: "image-1",
+      sourceOutUs: 3 * S,
+      fadeInUs: 500_000,
+      fadeOutUs: 500_000,
     });
   });
 
