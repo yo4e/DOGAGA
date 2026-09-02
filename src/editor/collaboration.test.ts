@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { EditorController } from "./controller";
-import { getVideoTracks } from "./model";
+import { IMAGE_DEFAULT_DURATION_US, getVideoTracks } from "./model";
 
 const S = 1_000_000;
 
@@ -23,6 +23,7 @@ describe("agent collaboration", () => {
     expect(controller.getSafeState()).toMatchObject({
       projectBrief: { destination: "spotify_canvas", goal: "promotional_loop" },
       editPlan: null,
+      humanDemonstration: null,
     });
   });
 
@@ -98,5 +99,106 @@ describe("agent collaboration", () => {
       operations: [{ type: "set_track_opacity", trackId: "missing-track", opacity: 0.5 }],
     })).toThrow("track was not found");
     expect(controller.getSafeState().editPlan).toBeNull();
+  });
+
+  it("captures a human example as semantic before/after changes", () => {
+    const controller = controllerWithVideo();
+    const recording = controller.startHumanDemonstration();
+
+    expect(recording.status).toBe("recording");
+    expect(controller.getSafeState().humanDemonstration).toMatchObject({
+      id: recording.id,
+      status: "recording",
+      changes: [],
+    });
+    expect("snapshot" in (controller.getSafeState().humanDemonstration as object)).toBe(false);
+
+    controller.execute({ type: "setCanvas", preset: "portrait", fitMode: "cover" });
+    controller.execute({ type: "moveClipToTrack", clipId: "clip-1", trackId: "video-2" });
+    controller.execute({ type: "setTrackOpacity", trackId: "video-2", opacity: 0.4 });
+    controller.execute({ type: "setClipSpeed", clipId: "clip-1", playbackRate: 1.5 });
+    controller.execute({ type: "setClipFade", clipId: "clip-1", fadeInUs: 500_000, fadeOutUs: 250_000 });
+
+    const demonstration = controller.finishHumanDemonstration();
+    expect(demonstration.status).toBe("ready");
+    expect(demonstration.changes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "set_canvas", preset: "portrait", fitMode: "cover" }),
+      expect.objectContaining({ type: "move_clip_to_track", clipId: "clip-1", fromTrackId: "video-1", trackId: "video-2" }),
+      expect.objectContaining({ type: "set_track_opacity", trackId: "video-2", beforeOpacity: 1, opacity: 0.4 }),
+      expect.objectContaining({ type: "set_clip_speed", clipId: "clip-1", beforePlaybackRate: 1, playbackRate: 1.5 }),
+      expect.objectContaining({ type: "set_clip_fade", clipId: "clip-1", fadeInUs: 500_000, fadeOutUs: 250_000 }),
+    ]));
+    expect(controller.getSafeState().humanDemonstration).toMatchObject({
+      status: "ready",
+      changes: expect.any(Array),
+    });
+  });
+
+  it("captures still-image display duration semantically", () => {
+    const controller = new EditorController();
+    controller.registerAsset({
+      id: "image-1",
+      kind: "image",
+      name: "cover.png",
+      durationUs: IMAGE_DEFAULT_DURATION_US,
+      width: 1200,
+      height: 1200,
+    });
+    controller.execute({
+      type: "addClip",
+      clip: {
+        id: "still-1",
+        assetId: "image-1",
+        sourceInUs: 0,
+        sourceOutUs: IMAGE_DEFAULT_DURATION_US,
+      },
+    });
+
+    controller.startHumanDemonstration();
+    controller.execute({ type: "setClipDuration", clipId: "still-1", durationUs: 3 * S });
+    const demonstration = controller.finishHumanDemonstration();
+
+    expect(demonstration).toMatchObject({
+      status: "ready",
+      changes: [
+        {
+          type: "set_still_duration",
+          clipId: "still-1",
+          beforeDurationUs: 5 * S,
+          durationUs: 3 * S,
+        },
+      ],
+    });
+  });
+
+  it("returns an explicit empty example when no supported semantic change was made", () => {
+    const controller = controllerWithVideo();
+    controller.startHumanDemonstration();
+    controller.setPlayheadUs(2 * S);
+    const demonstration = controller.finishHumanDemonstration();
+
+    expect(demonstration).toMatchObject({ status: "empty", changes: [] });
+  });
+
+  it("replaces and dismisses a completed demonstration without leaking the previous example", () => {
+    const controller = controllerWithVideo();
+    const first = controller.startHumanDemonstration();
+    controller.execute({ type: "setTrackVisibility", trackId: "video-1", visible: false });
+    controller.finishHumanDemonstration();
+
+    const second = controller.startHumanDemonstration();
+    expect(second.id).not.toBe(first.id);
+    expect(controller.getSafeState().humanDemonstration).toMatchObject({
+      id: second.id,
+      status: "recording",
+      changes: [],
+    });
+    controller.execute({ type: "setTrackVisibility", trackId: "video-1", visible: true });
+    expect(controller.finishHumanDemonstration().changes).toEqual([
+      expect.objectContaining({ type: "set_track_visibility", trackId: "video-1", visible: true }),
+    ]);
+
+    controller.dismissHumanDemonstration();
+    expect(controller.getSafeState().humanDemonstration).toBeNull();
   });
 });
