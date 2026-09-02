@@ -17,13 +17,14 @@ export const proposeEditPlanSchema = {
       type: "array",
       minItems: 1,
       maxItems: 8,
-      description: "Structured editing operations. The handler validates the fields required for each operation type against the live DOGAGA state.",
+      description: "Structured editing operations. The handler validates the fields required for each operation type against the live DOGAGA state. add_visual_clip uses a loaded visual asset ID plus an existing video track and can carry the demonstrated still duration, playback rate, and fades.",
       items: {
         type: "object",
         properties: {
           type: {
             type: "string",
             enum: [
+              "add_visual_clip",
               "set_canvas",
               "set_track_opacity",
               "set_track_visibility",
@@ -36,6 +37,7 @@ export const proposeEditPlanSchema = {
               "set_clip_fade",
             ],
           },
+          assetId: { type: "string" },
           preset: { type: "string", enum: ["landscape", "portrait", "square", "portraitFourFive"] },
           fitMode: { type: "string", enum: ["contain", "cover"] },
           trackId: { type: "string" },
