@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { EditorController } from "../editor/controller";
-import { IMAGE_DEFAULT_DURATION_US } from "../editor/model";
+import { IMAGE_DEFAULT_DURATION_US, getVideoTracks } from "../editor/model";
 import { proposeEditPlan } from "./collaborationHandlers";
 
 const S = 1_000_000;
@@ -71,6 +71,53 @@ describe("propose_edit_plan handler", () => {
     });
     controller.applyEditPlan(controller.getSafeState().editPlan!.id);
     expect(controller.getState().tracks[0].clips[0]).toMatchObject({ sourceOutUs: 3 * S });
+  });
+
+  it("adds a loaded still through a reviewable plan without mutating before Apply", () => {
+    const controller = new EditorController();
+    controller.registerAsset({
+      id: "image-1",
+      kind: "image",
+      name: "other.png",
+      durationUs: IMAGE_DEFAULT_DURATION_US,
+      width: 1200,
+      height: 1200,
+    });
+    controller.execute({ type: "addTrack", track: { id: "video-2", kind: "video", name: "V2" } });
+
+    const result = proposeEditPlan(controller, {
+      title: "Apply the demonstrated overlay treatment",
+      reason: "The human added a 3 second still to V2 with a half-second fade.",
+      operations: [{
+        type: "add_visual_clip",
+        assetId: "image-1",
+        trackId: "video-2",
+        durationUs: 3 * S,
+        fadeInUs: 500_000,
+        fadeOutUs: 500_000,
+      }],
+    });
+
+    expect(result).toMatchObject({ ok: true, status: "pending", operationCount: 1 });
+    expect(getVideoTracks(controller.getState()).find((track) => track.id === "video-2")?.clips).toHaveLength(0);
+    const plan = controller.getSafeState().editPlan!;
+    expect(plan.operations[0]).toMatchObject({
+      type: "add_visual_clip",
+      assetId: "image-1",
+      trackId: "video-2",
+      durationUs: 3 * S,
+      fadeInUs: 500_000,
+      fadeOutUs: 500_000,
+    });
+    expect((plan.operations[0] as { clipId?: string }).clipId).toMatch(/^plan-clip-/);
+
+    controller.applyEditPlan(plan.id);
+    expect(getVideoTracks(controller.getState()).find((track) => track.id === "video-2")?.clips[0]).toMatchObject({
+      assetId: "image-1",
+      sourceOutUs: 3 * S,
+      fadeInUs: 500_000,
+      fadeOutUs: 500_000,
+    });
   });
 
   it("rejects unsupported operation types", () => {
