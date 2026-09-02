@@ -11,6 +11,11 @@ import {
 } from "../editor/collaboration";
 import type { EditorController } from "../editor/controller";
 import {
+  CANVAS_PRESETS,
+  type CanvasFitMode,
+  type CanvasPresetId,
+} from "../editor/model";
+import {
   addClip,
   addTrack,
   addTransition,
@@ -58,6 +63,8 @@ import {
 } from "./schemas";
 import "./collaboration.css";
 
+const CANVAS_PRESET_IDS = Object.keys(CANVAS_PRESETS) as CanvasPresetId[];
+
 export type AgentActivity = {
   id: string;
   tool: string;
@@ -78,6 +85,11 @@ function activityId(): string {
 }
 
 export function WebMCPTools({ controller, onActivity }: Props) {
+  const editorState = useSyncExternalStore(
+    controller.subscribe,
+    controller.getState,
+    controller.getState,
+  );
   const collaboration = useSyncExternalStore(
     controller.subscribe,
     controller.getCollaborationState,
@@ -85,10 +97,12 @@ export function WebMCPTools({ controller, onActivity }: Props) {
   );
   const [planError, setPlanError] = useState<string | null>(null);
   const [teachingError, setTeachingError] = useState<string | null>(null);
+  const [previewPortalTarget, setPreviewPortalTarget] = useState<Element | null>(null);
   const [mediaPortalTarget, setMediaPortalTarget] = useState<Element | null>(null);
   const [developerPortalTarget, setDeveloperPortalTarget] = useState<Element | null>(null);
 
   useEffect(() => {
+    setPreviewPortalTarget(document.querySelector(".preview-panel"));
     setMediaPortalTarget(document.querySelector(".media-panel"));
     setDeveloperPortalTarget(document.querySelector(".developer-content"));
   }, []);
@@ -328,6 +342,72 @@ export function WebMCPTools({ controller, onActivity }: Props) {
     }
   };
 
+  const setPreviewCanvas = (preset: CanvasPresetId, fitMode: CanvasFitMode) => {
+    controller.execute({ type: "setCanvas", preset, fitMode });
+  };
+
+  const projectSettingsPanel = (
+    <div className="preview-project-settings" aria-label="Project and preview settings">
+      <div className="project-brief-controls" aria-label="Project brief">
+        <label>
+          Destination
+          <select
+            aria-label="Project destination"
+            value={collaboration.projectBrief.destination}
+            onChange={(event) => controller.setProjectBrief({
+              ...collaboration.projectBrief,
+              destination: event.target.value as ProjectDestination,
+            })}
+          >
+            {PROJECT_DESTINATION_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Goal
+          <select
+            aria-label="Project goal"
+            value={collaboration.projectBrief.goal}
+            onChange={(event) => controller.setProjectBrief({
+              ...collaboration.projectBrief,
+              goal: event.target.value as ProjectGoal,
+            })}
+          >
+            {PROJECT_GOAL_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className="canvas-controls preview-canvas-controls" aria-label="Video display settings">
+        <label>
+          Canvas
+          <select
+            name="preview-canvas-preset"
+            value={editorState.canvas.preset}
+            onChange={(event) => setPreviewCanvas(event.target.value as CanvasPresetId, editorState.canvas.fitMode)}
+          >
+            {CANVAS_PRESET_IDS.map((presetId) => (
+              <option value={presetId} key={presetId}>{CANVAS_PRESETS[presetId].label}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Source fit
+          <select
+            name="preview-canvas-fit"
+            value={editorState.canvas.fitMode}
+            onChange={(event) => setPreviewCanvas(editorState.canvas.preset, event.target.value as CanvasFitMode)}
+          >
+            <option value="contain">Contain</option>
+            <option value="cover">Cover</option>
+          </select>
+        </label>
+      </div>
+    </div>
+  );
+
   const demonstrationMessage = demonstration?.status === "recording"
     ? "Teaching… edit normally, then stop."
     : demonstration?.status === "ready"
@@ -391,41 +471,10 @@ export function WebMCPTools({ controller, onActivity }: Props) {
           <strong>WebMCP</strong>
           <span>{supported ? `Connected · core ${registered}/${tools.length}` : "Not supported in this browser"}</span>
         </div>
-        <div className="project-brief-controls" aria-label="Project brief">
-          <label>
-            Destination
-            <select
-              aria-label="Project destination"
-              value={collaboration.projectBrief.destination}
-              onChange={(event) => controller.setProjectBrief({
-                ...collaboration.projectBrief,
-                destination: event.target.value as ProjectDestination,
-              })}
-            >
-              {PROJECT_DESTINATION_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Goal
-            <select
-              aria-label="Project goal"
-              value={collaboration.projectBrief.goal}
-              onChange={(event) => controller.setProjectBrief({
-                ...collaboration.projectBrief,
-                goal: event.target.value as ProjectGoal,
-              })}
-            >
-              {PROJECT_GOAL_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-          </label>
-        </div>
         {error && <small role="alert">Registration error: {error.message}</small>}
       </section>
 
+      {previewPortalTarget && createPortal(projectSettingsPanel, previewPortalTarget)}
       {mediaPortalTarget && createPortal(teachPanel, mediaPortalTarget)}
       {developerPortalTarget && createPortal(humanExamplePanel, developerPortalTarget)}
 
