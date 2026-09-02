@@ -333,8 +333,8 @@ export function WebMCPTools({ controller, onActivity }: Props) {
     : demonstration?.status === "ready"
       ? `Example ready · ${demonstration.changes.length} semantic change${demonstration.changes.length === 1 ? "" : "s"}`
       : demonstration?.status === "empty"
-        ? "No supported semantic changes. Try adding or moving a visual, or changing fade, opacity, still duration, speed, mute, or canvas."
-        : "Show DOGAGA one treatment: add or move a visual, adjust fade, opacity, still duration, speed, mute, or canvas.";
+        ? "No supported semantic changes. Try adding a loaded visual to the timeline, moving an existing clip, or changing fade, opacity, still duration, speed, mute, or canvas."
+        : "Show DOGAGA one treatment: add a loaded visual to the timeline, move an existing clip, or adjust fade, opacity, still duration, speed, mute, or canvas.";
 
   const teachPanel = (
     <section className={`teach-by-example ${demonstration?.status ?? "idle"}`} aria-label="Teach by Example">
@@ -367,7 +367,7 @@ export function WebMCPTools({ controller, onActivity }: Props) {
         <p className="human-example-recording">Recording… make the example edit in DOGAGA, then choose Stop teaching.</p>
       )}
       {demonstration?.status === "empty" && (
-        <p className="human-example-empty">No supported semantic changes were found. Try adding or moving a visual, or changing fade, opacity, still duration, speed, mute, or canvas.</p>
+        <p className="human-example-empty">No supported semantic changes were found. Try adding a loaded visual to the timeline, moving an existing clip, or changing fade, opacity, still duration, speed, mute, or canvas.</p>
       )}
       {demonstration?.status === "ready" && (
         <>
