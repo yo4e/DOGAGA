@@ -110,6 +110,40 @@ function VideoLayer({ clip, state, runtime, playing, trackOpacity }: {
   );
 }
 
+function ImageLayer({ clip, state, runtime, trackOpacity }: {
+  clip: VideoClip;
+  state: EditorState;
+  runtime: MediaRuntime;
+  trackOpacity: number;
+}) {
+  const binding = runtime.get(clip.assetId);
+  if (!binding) return null;
+  return (
+    <img
+      className="preview-video preview-image"
+      src={binding.objectUrl}
+      alt=""
+      draggable={false}
+      style={{ opacity: opacityForClip(state, clip, trackOpacity), objectFit: state.canvas.fitMode }}
+    />
+  );
+}
+
+function VisualLayer({ clip, state, runtime, playing, trackOpacity }: {
+  clip: VideoClip;
+  state: EditorState;
+  runtime: MediaRuntime;
+  playing: boolean;
+  trackOpacity: number;
+}) {
+  const asset = state.assets.find((candidate) => candidate.id === clip.assetId);
+  if (asset?.kind === "image") {
+    return <ImageLayer clip={clip} state={state} runtime={runtime} trackOpacity={trackOpacity} />;
+  }
+  if (asset?.kind !== "video") return null;
+  return <VideoLayer clip={clip} state={state} runtime={runtime} playing={playing} trackOpacity={trackOpacity} />;
+}
+
 function audioEndUs(clip: AudioClip): number {
   return clip.timelineStartUs + (clip.sourceOutUs - clip.sourceInUs);
 }
@@ -148,8 +182,8 @@ export function Preview({ state, controller, runtime }: Props) {
   const durationUs = timelineDurationUs(state);
 
   const videoTracks = useMemo(() => getVideoTracks(state), [state.tracks]);
-  const allVideos = useMemo(() => allVideoClips(state), [state.tracks]);
-  const activeVideoLayers = useMemo(
+  const allVisuals = useMemo(() => allVideoClips(state), [state.tracks]);
+  const activeVisualLayers = useMemo(
     () => videoTracks.flatMap((track) => {
       if (!track.visible || track.opacity <= 0) return [];
       return track.clips
@@ -337,13 +371,13 @@ export function Preview({ state, controller, runtime }: Props) {
       >
         <div
           className="preview-stage"
-          aria-label={`${state.canvas.width}×${state.canvas.height} video preview`}
+          aria-label={`${state.canvas.width}×${state.canvas.height} visual preview`}
           style={{
             aspectRatio: `${state.canvas.width} / ${state.canvas.height}`,
           }}
         >
-          {activeVideoLayers.map(({ track, clip }) => (
-            <VideoLayer
+          {activeVisualLayers.map(({ track, clip }) => (
+            <VisualLayer
               key={clip.id}
               clip={clip}
               state={state}
@@ -352,10 +386,10 @@ export function Preview({ state, controller, runtime }: Props) {
               trackOpacity={track.opacity}
             />
           ))}
-          {!activeVideoLayers.length && (
+          {!activeVisualLayers.length && (
             <div className="preview-empty">
               <FilmStripIcon className="preview-empty-icon" size={42} weight="light" aria-hidden="true" />
-              <strong>{allVideos.length ? "No video is visible at the current playhead" : "Add a video clip to the timeline"}</strong>
+              <strong>{allVisuals.length ? "No visual is visible at the current playhead" : "Add a video or image to the timeline"}</strong>
             </div>
           )}
         </div>

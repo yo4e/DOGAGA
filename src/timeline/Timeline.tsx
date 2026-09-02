@@ -175,6 +175,8 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
 
   const menuLocation = clipMenu ? findVideoClipLocation(state, clipMenu.clipId) ?? null : null;
   const menuClip = menuLocation?.clip ?? null;
+  const menuAsset = menuClip ? state.assets.find((asset) => asset.id === menuClip.assetId) ?? null : null;
+  const menuIsImage = menuAsset?.kind === "image";
   const allowedFadeDurations = menuClip
     ? FADE_DURATIONS_US.filter((duration) => duration <= clipDurationUs(menuClip))
     : FADE_DURATIONS_US;
@@ -478,6 +480,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
                   >
                     {track.clips.map((clip, index) => {
                       const asset = state.assets.find((candidate) => candidate.id === clip.assetId);
+                      const isImage = asset?.kind === "image";
                       const clipDuration = clipDurationUs(clip);
                       const dropSide = clipDropTarget?.trackId === track.id
                         && clipDropTarget.anchorClipId === clip.id
@@ -491,7 +494,9 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
                           data-playback-shortcut-surface
                           data-video-clip-id={clip.id}
                           aria-pressed={selectedClipId === clip.id}
-                          title={`${asset?.name ?? clip.assetId} · ${(clipDuration / US).toFixed(2)}s · ${clip.playbackRate}× · fade ${fadeLabel(clip.fadeInUs)} / ${fadeLabel(clip.fadeOutUs)} · drag to reorder or move tracks`}
+                          title={isImage
+                            ? `${asset?.name ?? clip.assetId} · ${(clipDuration / US).toFixed(2)}s still · fade ${fadeLabel(clip.fadeInUs)} / ${fadeLabel(clip.fadeOutUs)} · drag to reorder or move tracks`
+                            : `${asset?.name ?? clip.assetId} · ${(clipDuration / US).toFixed(2)}s · ${clip.playbackRate}× · fade ${fadeLabel(clip.fadeInUs)} / ${fadeLabel(clip.fadeOutUs)} · drag to reorder or move tracks`}
                           style={{
                             left: (clip.timelineStartUs / US) * pixelsPerSecond,
                             width: Math.max(28, (clipDuration / US) * pixelsPerSecond),
@@ -529,7 +534,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
                           }}
                         >
                           <strong>{index + 1}. {asset?.name ?? clip.assetId}</strong>
-                          <span>{(clipDuration / US).toFixed(2)}s · {clip.playbackRate}×</span>
+                          <span>{(clipDuration / US).toFixed(2)}s · {isImage ? "still" : `${clip.playbackRate}×`}</span>
                         </button>
                       );
                     })}
@@ -541,7 +546,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
                       />
                     )}
                     {!track.clips.length && (
-                      <span className="track-empty">Add or drop video clips here ({track.name})</span>
+                      <span className="track-empty">Add or drop visual clips here ({track.name})</span>
                     )}
                     {state.transitions.map((transition) => {
                       const toClip = track.clips.find((clip) => clip.id === transition.toClipId);
@@ -598,7 +603,7 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
         </div>
       </div>
 
-      <p className="timeline-help">Space to play/pause, drag clips to reorder or move between video tracks, ⌘K / Ctrl+K to split, Shift+D to toggle a dissolve. Right-click a clip for speed, fades, or track selection.</p>
+      <p className="timeline-help">Space to play/pause, drag clips to reorder or move between video tracks, ⌘K / Ctrl+K to split video, Shift+D to toggle a dissolve. Right-click a visual clip for duration/speed, fades, or track selection.</p>
 
       {clipMenu && menuClip && menuLocation && (
         <div
@@ -624,23 +629,52 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
               ))}
             </select>
           </label>
-          <label>
-            Playback speed
-            <select
-              name={`clip-speed-${menuClip.id}`}
-              autoFocus
-              value={menuClip.playbackRate}
-              onChange={(event) => controller.execute({
-                type: "setClipSpeed",
-                clipId: menuClip.id,
-                playbackRate: Number(event.target.value),
-              })}
-            >
-              {PLAYBACK_RATES.map((rate) => (
-                <option key={rate} value={rate}>{rate}×</option>
-              ))}
-            </select>
-          </label>
+          {menuIsImage ? (
+            <label>
+              Duration (s)
+              <input
+                key={`${menuClip.id}-${clipDurationUs(menuClip)}`}
+                name={`clip-still-duration-${menuClip.id}`}
+                aria-label={`Still image duration for ${menuAsset?.name ?? menuClip.id} in seconds`}
+                type="number"
+                min="0.1"
+                max="600"
+                step="0.1"
+                autoFocus
+                defaultValue={(clipDurationUs(menuClip) / US).toFixed(2)}
+                onBlur={(event) => {
+                  const seconds = Number(event.currentTarget.value);
+                  if (!Number.isFinite(seconds) || seconds < 0.1 || seconds > 600) {
+                    event.currentTarget.value = (clipDurationUs(menuClip) / US).toFixed(2);
+                    return;
+                  }
+                  controller.execute({
+                    type: "setClipDuration",
+                    clipId: menuClip.id,
+                    durationUs: Math.round(seconds * US),
+                  });
+                }}
+              />
+            </label>
+          ) : (
+            <label>
+              Playback speed
+              <select
+                name={`clip-speed-${menuClip.id}`}
+                autoFocus
+                value={menuClip.playbackRate}
+                onChange={(event) => controller.execute({
+                  type: "setClipSpeed",
+                  clipId: menuClip.id,
+                  playbackRate: Number(event.target.value),
+                })}
+              >
+                {PLAYBACK_RATES.map((rate) => (
+                  <option key={rate} value={rate}>{rate}×</option>
+                ))}
+              </select>
+            </label>
+          )}
           <label>
             Fade in
             <select
@@ -675,7 +709,11 @@ export function Timeline({ state, controller, selectedClipId, onSelectClip }: Pr
               ))}
             </select>
           </label>
-          <small>Speed and fades are per clip. Moving a clip to another track keeps its source range.</small>
+          <small>
+            {menuIsImage
+              ? "Duration and fades are per still clip. Moving it to another track keeps the same image asset."
+              : "Speed and fades are per video clip. Moving it to another track keeps its source range."}
+          </small>
         </div>
       )}
     </div>

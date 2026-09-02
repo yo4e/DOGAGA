@@ -5,6 +5,8 @@ For WebMCP Challenge evaluation and the current public `compact production v0`, 
 ## Current / evaluation-facing
 
 - [Architecture — compact production v0](ARCHITECTURE.md)
+- [Destination-aware agent collaboration](AGENT_COLLABORATION.md)
+- [Still-image support](STILL_IMAGE_SUPPORT.md)
 - [WebMCP browser compatibility](WEBMCP_BROWSER_COMPATIBILITY.md)
 - [Privacy and local-data boundary](PRIVACY_AND_DATA_BOUNDARY.md)
 - [Devpost submission draft](DEVPOST_SUBMISSION_DRAFT.md)

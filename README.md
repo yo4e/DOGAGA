@@ -18,17 +18,19 @@ The public build is deployed on Cloudflare Pages from the `main` branch.
 
 ### Editing
 
-- Load local video and audio files
+- Load local video, PNG/JPEG/WebP still-image, and audio files
 - Multiple video tracks (V1 / V2 / ...) and audio tracks (A1 / A2 / ...)
 - Add and reorder video/audio tracks
 - Toggle video track visibility and set track opacity
 - Mute audio tracks
-- Move a video clip between video tracks
-- Add, reorder, trim, and delete clips
-- Split a clip at the current playhead position
-- `⌘K` / `Ctrl+K` to split the selected clip at the playhead
+- Move visual clips between video tracks
+- Add, reorder, trim, and delete video clips
+- Add still images as visual clips with an adjustable display duration (5 seconds by default)
+- Preserve transparent PNG overlays so higher video tracks can reveal lower tracks beneath them
+- Split a video clip at the current playhead position
+- `⌘K` / `Ctrl+K` to split the selected video clip at the playhead
 - `Shift+D` to toggle a 0.5-second cross-dissolve between the selected clip and the next clip on the same track
-- Change clip playback speed from the context menu (0.25× / 0.5× / 0.75× / 1× / 1.25× / 1.5× / 2×)
+- Change video clip playback speed from the context menu (0.25× / 0.5× / 0.75× / 1× / 1.25× / 1.5× / 2×)
 - Set clip fade-in / fade-out from the context menu (none / 0.25s / 0.5s / 1s / 2s)
 - Set audio start position and volume, or remove an audio clip
 - Add and remove cross-dissolves
@@ -36,13 +38,16 @@ The public build is deployed on Cloudflare Pages from the `main` branch.
 - Playhead seeking
 - Timeline zoom/density controls
 
+Still images intentionally use display duration instead of source trim, split, or playback speed.
+
 ### Preview
 
 - Play, pause, and seek actual local video
-- Composite multiple video tracks
+- Composite multiple video and still-image layers
+- Preserve PNG alpha transparency in layered Preview
 - Apply video track opacity and visibility immediately
 - Continue playback across clip boundaries
-- Reflect trim, split, speed, fade, move, and delete operations immediately
+- Reflect trim, split, speed, still duration, fade, move, and delete operations immediately
 - Play multiple audio tracks simultaneously and respect mute state
 - Combine clip fades and cross-dissolves through the same opacity calculation
 - Project canvas presets: 16:9 / 9:16 / 1:1 / 4:5
@@ -52,14 +57,17 @@ Higher-order video tracks are rendered above lower-order tracks. Cross-dissolves
 
 ### Export
 
-- Export the current multi-track video/audio project entirely in the browser
+- Export the current multi-track video/still-image/audio project entirely in the browser
+- Composite video and still-image layers, including transparent PNG overlays
 - Respect video track order, opacity, and visibility
 - Mix multiple audio tracks through Web Audio, including track mute and clip volume
-- Respect trim, split, playback speed, fades, clip order, canvas preset, contain/cover, and cross-dissolves
+- Respect trim, split, playback speed, still-image duration, fades, clip order, canvas preset, contain/cover, and cross-dissolves
 - Browser-native `canvas.captureStream()` + Web Audio + MediaRecorder pipeline
 - Prefer MP4 when supported and fall back to WebM when needed
 - No server upload
 - Progress, cancel, and download controls
+
+DOGAGA currently exports the normal composited result; it does not export an alpha-channel video.
 
 ### WebMCP
 
@@ -69,9 +77,10 @@ The human UI and the browser agent operate on the **same Editor state and the sa
 
 The canonical editor state is `tracks[]`. For compatibility with earlier agent workflows, the agent-safe state still includes temporary legacy views derived from V1/A1.
 
-Current 20 tools:
+The current WebMCP surface has **23 tools**:
 
 - `get_project_state`
+- `propose_edit_plan`
 - `add_track`
 - `remove_track`
 - `move_track`
@@ -79,11 +88,13 @@ Current 20 tools:
 - `set_track_visibility`
 - `set_track_mute`
 - `add_clip`
+- `add_image_clip`
 - `move_clip`
 - `move_clip_to_track`
 - `trim_clip`
 - `split_clip`
 - `set_clip_speed`
+- `set_still_duration`
 - `set_clip_fade`
 - `delete_clip`
 - `set_audio`
@@ -92,13 +103,17 @@ Current 20 tools:
 - `add_transition`
 - `remove_transition`
 
-Existing tool behavior remains compatible: omitting `trackId` in `add_clip` targets V1, while omitting it in `set_audio` / `clear_audio` targets A1.
+Existing tool behavior remains compatible: omitting `trackId` in `add_clip` targets V1, while omitting it in `set_audio` / `clear_audio` targets A1. Image assets use `add_image_clip`, and their display duration can be changed with `set_still_duration`.
 
-In a WebMCP-capable environment, a human can load local media, an agent can inspect the shared state and edit tracks/clips, the human can make a manual correction, and the agent can re-read the same live state and continue editing.
+DOGAGA also exposes a small agent-safe **Project Brief** (`Destination` + `Goal`). An agent can inspect that brief together with the live editor state, proactively recommend destination-aware adjustments, and submit a structured `propose_edit_plan`. The plan is shown inside DOGAGA and does not mutate the timeline until the human chooses **Apply**. Apply revalidates the whole plan and commits it atomically through the same editor executor; Reject leaves the timeline untouched.
+
+In a WebMCP-capable environment, a human can load local media, an agent can inspect the shared state and propose or perform edits, the human can make a manual correction, and the agent can re-read the same live state and continue editing.
+
+See [Destination-aware agent collaboration](docs/AGENT_COLLABORATION.md) and [Still-image support](docs/STILL_IMAGE_SUPPORT.md).
 
 ## Privacy / local-first design
 
-Source video and audio are not uploaded to a server during normal editing or export.
+Source video, still images, and audio are not uploaded to a server during normal editing or export.
 
 The browser runtime keeps `File` objects and object URLs during the current session, but these are excluded from the Editor state exposed through WebMCP.
 
@@ -109,6 +124,8 @@ The agent-safe state does not include:
 - absolute paths
 - object URLs
 - local filesystem information
+
+Image assets are exposed only as safe descriptors such as asset ID, kind, name, duration, and dimensions.
 
 See [Privacy and local-data boundary](docs/PRIVACY_AND_DATA_BOUNDARY.md) for the current technical data boundary.
 
@@ -158,13 +175,14 @@ Compact production v0 intentionally limits scope. Major current limitations incl
 - No audio clip fade or playback-speed controls yet
 - No arbitrary clip positioning, gaps, or drag trimming yet
 - No waveform, lyrics, captions, or advanced effects yet
+- Still images do not yet have image-specific motion/effects such as Ken Burns animation
 - Frame-perfect professional NLE precision is not a goal for this version
 
-The next important product work is **real-browser multi-track QA, Chrome/WebMCP compatibility validation, and UX fixes discovered through actual use**.
+The immediate priority is to keep the current production surface stable while finishing real-browser/WebMCP submission QA and documentation. Larger editing features can continue after the Challenge freeze.
 
 ## WebMCP Challenge 2026
 
-DOGAGA existed before 2026-08-25. During the Challenge period, the existing project has been extended with browser-native WebMCP collaborative editing and the compact editor v0.
+DOGAGA existed before 2026-08-25. During the Challenge period, the existing project has been meaningfully extended with browser-native WebMCP collaborative editing, destination-aware human approval of agent edit proposals, and the compact editor v0.
 
 The submission uses the public DOGAGA app itself rather than a separate fixed demo application.
 
@@ -174,7 +192,7 @@ A public demo video under three minutes will be prepared separately for the Chal
 
 The long-term goal is a browser-only workflow that can handle:
 
-> Place a song, arrange footage, synchronize lyrics, style text, apply a small amount of processing, and export for the intended destination.
+> Place a song, arrange footage and stills, synchronize lyrics, style text, apply a small amount of processing, and export for the intended destination.
 
 DOGAGA is not intended to become an all-purpose professional editor. The goal is a small editor with enough power for music-centered video work.
 
@@ -184,6 +202,8 @@ For the current public build and WebMCP Challenge evaluation, use these English 
 
 - [Documentation guide](docs/README.md)
 - [Current architecture](docs/ARCHITECTURE.md)
+- [Destination-aware agent collaboration](docs/AGENT_COLLABORATION.md)
+- [Still-image support](docs/STILL_IMAGE_SUPPORT.md)
 - [WebMCP browser compatibility](docs/WEBMCP_BROWSER_COMPATIBILITY.md)
 - [Privacy and local-data boundary](docs/PRIVACY_AND_DATA_BOUNDARY.md)
 - [Devpost submission draft](docs/DEVPOST_SUBMISSION_DRAFT.md)

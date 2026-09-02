@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { executeCommand } from "../editor/executor";
-import { DEFAULT_VIDEO_TRACK_ID, createEmptyEditorState, type EditorState } from "../editor/model";
+import { DEFAULT_VIDEO_TRACK_ID, IMAGE_DEFAULT_DURATION_US, createEmptyEditorState, type EditorState } from "../editor/model";
 import { computeDrawRegion, exportDurationUs, pickRecorderFormat, videoLayersAt } from "./plan";
 
 const S = 1_000_000;
@@ -11,6 +11,7 @@ function baseState(): EditorState {
     assets: [
       { id: "v1", kind: "video", name: "one.mp4", durationUs: 10 * S, width: 1920, height: 1080 },
       { id: "v2", kind: "video", name: "two.mp4", durationUs: 10 * S, width: 1080, height: 1920 },
+      { id: "i1", kind: "image", name: "cover.png", durationUs: IMAGE_DEFAULT_DURATION_US, width: 1200, height: 1200 },
       { id: "a1", kind: "audio", name: "song.mp3", durationUs: 20 * S },
     ],
   };
@@ -33,11 +34,33 @@ describe("export plan", () => {
   it("maps timeline time to the active clip source time", () => {
     const state = withTwoClips();
     expect(videoLayersAt(state, 2 * S)).toEqual([
-      { trackId: DEFAULT_VIDEO_TRACK_ID, clipId: "c1", assetId: "v1", sourceTimeUs: 3 * S, opacity: 1 },
+      { trackId: DEFAULT_VIDEO_TRACK_ID, clipId: "c1", assetId: "v1", assetKind: "video", sourceTimeUs: 3 * S, opacity: 1 },
     ]);
     expect(videoLayersAt(state, 6 * S)).toEqual([
-      { trackId: DEFAULT_VIDEO_TRACK_ID, clipId: "c2", assetId: "v2", sourceTimeUs: 3 * S, opacity: 1 },
+      { trackId: DEFAULT_VIDEO_TRACK_ID, clipId: "c2", assetId: "v2", assetKind: "video", sourceTimeUs: 3 * S, opacity: 1 },
     ]);
+  });
+
+  it("plans a still image as a visual layer with no source-time seek", () => {
+    let state = baseState();
+    state = executeCommand(state, {
+      type: "addClip",
+      clip: { id: "still", assetId: "i1", sourceInUs: 0, sourceOutUs: IMAGE_DEFAULT_DURATION_US },
+    });
+    state = executeCommand(state, { type: "setClipDuration", clipId: "still", durationUs: 8 * S });
+
+    expect(exportDurationUs(state)).toBe(8 * S);
+    expect(videoLayersAt(state, 4 * S)).toEqual([
+      {
+        trackId: DEFAULT_VIDEO_TRACK_ID,
+        clipId: "still",
+        assetId: "i1",
+        assetKind: "image",
+        sourceTimeUs: 0,
+        opacity: 1,
+      },
+    ]);
+    expect(videoLayersAt(state, 8 * S)).toEqual([]);
   });
 
   it("returns V1 then V2 and multiplies video track opacity", () => {
@@ -92,6 +115,7 @@ describe("export plan", () => {
       trackId: DEFAULT_VIDEO_TRACK_ID,
       clipId: "c1",
       assetId: "v1",
+      assetKind: "video",
       sourceTimeUs: 4 * S,
       opacity: 1,
     });

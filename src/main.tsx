@@ -4,6 +4,7 @@ import App from "./App";
 import "./styles.css";
 import "./timeline/multitrack.css";
 import "./ux-polish.css";
+import "./still-image.css";
 
 const root = document.getElementById("root");
 
