@@ -411,9 +411,6 @@ export function operationToEditorCommand(
       if (asset.kind !== "video" && asset.kind !== "image") {
         throw new Error("The selected asset is not a visual asset.");
       }
-      const sourceOutUs = asset.kind === "image"
-        ? operation.durationUs ?? asset.durationUs
-        : asset.durationUs;
       return {
         type: "addClip",
         trackId: operation.trackId,
@@ -422,7 +419,7 @@ export function operationToEditorCommand(
           id: operation.clipId,
           assetId: operation.assetId,
           sourceInUs: 0,
-          sourceOutUs,
+          sourceOutUs: asset.durationUs,
           playbackRate: asset.kind === "image" ? 1 : operation.playbackRate ?? 1,
           fadeInUs: operation.fadeInUs ?? 0,
           fadeOutUs: operation.fadeOutUs ?? 0,
@@ -472,10 +469,20 @@ export function operationToEditorCommand(
 }
 
 export function simulateEditPlan(state: EditorState, operations: readonly EditPlanOperation[]): EditorState {
-  return operations.reduce(
-    (nextState, operation) => executeCommand(nextState, operationToEditorCommand(nextState, operation)),
-    state,
-  );
+  return operations.reduce((nextState, operation) => {
+    let after = executeCommand(nextState, operationToEditorCommand(nextState, operation));
+    if (operation.type === "add_visual_clip" && operation.durationUs !== undefined) {
+      const asset = after.assets.find((candidate) => candidate.id === operation.assetId);
+      if (asset?.kind === "image" && operation.durationUs !== asset.durationUs) {
+        after = executeCommand(after, {
+          type: "setClipDuration",
+          clipId: operation.clipId,
+          durationUs: operation.durationUs,
+        });
+      }
+    }
+    return after;
+  }, state);
 }
 
 function trackName(state: EditorState, trackId: string): string {
