@@ -40,6 +40,13 @@ function requiredNumber(input: Record<string, unknown>, key: string): number {
   return value;
 }
 
+function optionalNumber(input: Record<string, unknown>, key: string): number | undefined {
+  const value = input[key];
+  if (value === undefined) return undefined;
+  if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`${key} must be a finite number`);
+  return value;
+}
+
 function requiredInteger(input: Record<string, unknown>, key: string): number {
   const value = input[key];
   if (!Number.isSafeInteger(value)) throw new Error(`${key} must be a safe integer`);
@@ -64,6 +71,36 @@ function parseOperation(value: unknown): EditPlanOperation {
   const type = requiredString(input, "type");
 
   switch (type) {
+    case "add_visual_clip": {
+      const toIndex = optionalInteger(input, "toIndex");
+      const durationUs = optionalInteger(input, "durationUs");
+      const playbackRate = optionalNumber(input, "playbackRate");
+      const fadeInUs = optionalInteger(input, "fadeInUs");
+      const fadeOutUs = optionalInteger(input, "fadeOutUs");
+      if (durationUs !== undefined && (durationUs < IMAGE_MIN_DURATION_US || durationUs > IMAGE_MAX_DURATION_US)) {
+        throw new Error("Unsupported still duration");
+      }
+      if (playbackRate !== undefined && !isSupportedPlaybackRate(playbackRate)) {
+        throw new Error("Unsupported playbackRate");
+      }
+      if (fadeInUs !== undefined && !isSupportedFadeDuration(fadeInUs)) {
+        throw new Error("Unsupported fade duration");
+      }
+      if (fadeOutUs !== undefined && !isSupportedFadeDuration(fadeOutUs)) {
+        throw new Error("Unsupported fade duration");
+      }
+      return {
+        type,
+        clipId: makeId("plan-clip"),
+        assetId: requiredString(input, "assetId"),
+        trackId: requiredString(input, "trackId"),
+        ...(toIndex === undefined ? {} : { toIndex }),
+        ...(durationUs === undefined ? {} : { durationUs }),
+        ...(playbackRate === undefined ? {} : { playbackRate }),
+        ...(fadeInUs === undefined ? {} : { fadeInUs }),
+        ...(fadeOutUs === undefined ? {} : { fadeOutUs }),
+      };
+    }
     case "set_canvas": {
       const preset = requiredString(input, "preset");
       if (!["landscape", "portrait", "square", "portraitFourFive"].includes(preset)) {
