@@ -280,7 +280,7 @@ See `docs/CHALLENGE_DEMO_VIDEO_SCRIPT.md` for the timed script.
 
 ## Final submission checklist
 
-- [ ] Final supported-host production WebMCP scenario passes
+- [x] Final supported-host production WebMCP scenario passes
 - [x] Public live URL
 - [x] Public repository
 - [x] MIT license visible
