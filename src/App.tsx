@@ -19,6 +19,7 @@ import { MediaRuntime } from "./media/runtime";
 import { probeMediaFile } from "./media/probe";
 import { Preview } from "./preview/Preview";
 import { Timeline } from "./timeline/Timeline";
+import { StillImageWebMCPTools } from "./webmcp/StillImageWebMCPTools";
 import { WebMCPTools, type AgentActivity } from "./webmcp/WebMCPTools";
 
 const US = 1_000_000;
@@ -286,6 +287,7 @@ function App() {
 
   return (
     <main className="app-shell">
+      <StillImageWebMCPTools controller={controller} onActivity={recordActivity} />
       <header className="app-bar">
         <div className="app-bar-primary">
           <div className="brand-lockup">
@@ -488,14 +490,15 @@ function App() {
                 <label className="inspector-track-select">
                   Duration (s)
                   <input
+                    key={`${selectedClip.id}-${clipDurationUs(selectedClip)}`}
                     name={`still-duration-${selectedClip.id}`}
                     aria-label={`Still image duration for ${selectedAsset?.name ?? selectedClip.id} in seconds`}
                     type="number"
                     min="0.1"
                     max="600"
                     step="0.1"
-                    value={seconds(clipDurationUs(selectedClip))}
-                    onChange={(event) => {
+                    defaultValue={seconds(clipDurationUs(selectedClip))}
+                    onBlur={(event) => {
                       const value = Number(event.target.value);
                       if (!Number.isFinite(value)) return;
                       run(() => controller.execute({
