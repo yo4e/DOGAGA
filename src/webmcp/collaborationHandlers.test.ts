@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { EditorController } from "../editor/controller";
+import { IMAGE_DEFAULT_DURATION_US } from "../editor/model";
 import { proposeEditPlan } from "./collaborationHandlers";
 
 const S = 1_000_000;
@@ -36,6 +37,40 @@ describe("propose_edit_plan handler", () => {
       title: "Optimize for Spotify Canvas",
       status: "pending",
     });
+  });
+
+  it("accepts still-image duration as a reviewable edit-plan operation", () => {
+    const controller = new EditorController();
+    controller.registerAsset({
+      id: "image-1",
+      kind: "image",
+      name: "cover.png",
+      durationUs: IMAGE_DEFAULT_DURATION_US,
+      width: 1200,
+      height: 1200,
+    });
+    controller.execute({
+      type: "addClip",
+      clip: {
+        id: "still-1",
+        assetId: "image-1",
+        sourceInUs: 0,
+        sourceOutUs: IMAGE_DEFAULT_DURATION_US,
+      },
+    });
+
+    const result = proposeEditPlan(controller, {
+      title: "Repeat the demonstrated still treatment",
+      reason: "The human example used a 3 second still duration.",
+      operations: [{ type: "set_still_duration", clipId: "still-1", durationUs: 3 * S }],
+    });
+
+    expect(result).toMatchObject({ ok: true, status: "pending", operationCount: 1 });
+    expect(controller.getSafeState().editPlan).toMatchObject({
+      operations: [{ type: "set_still_duration", clipId: "still-1", durationUs: 3 * S }],
+    });
+    controller.applyEditPlan(controller.getSafeState().editPlan!.id);
+    expect(controller.getState().tracks[0].clips[0]).toMatchObject({ sourceOutUs: 3 * S });
   });
 
   it("rejects unsupported operation types", () => {
