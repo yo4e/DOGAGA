@@ -3,6 +3,7 @@ import {
   getDefaultAudioTrack,
   getVideoTracks,
   timelineDurationUs,
+  type AssetKind,
   type CanvasSettings,
   type EditorState,
 } from "./model";
@@ -52,7 +53,7 @@ export type SafeEditorState = {
   canvas: CanvasSettings;
   assets: Array<{
     id: string;
-    kind: "video" | "audio";
+    kind: AssetKind;
     name: string;
     durationUs: number;
     width?: number;
