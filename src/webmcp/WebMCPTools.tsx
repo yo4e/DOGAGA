@@ -4,6 +4,7 @@ import {
   PROJECT_DESTINATION_OPTIONS,
   PROJECT_GOAL_OPTIONS,
   describeEditPlanOperation,
+  describeHumanDemonstrationChange,
   type ProjectDestination,
   type ProjectGoal,
 } from "../editor/collaboration";
@@ -82,6 +83,7 @@ export function WebMCPTools({ controller, onActivity }: Props) {
     controller.getCollaborationState,
   );
   const [planError, setPlanError] = useState<string | null>(null);
+  const [teachingError, setTeachingError] = useState<string | null>(null);
 
   const execute = (tool: string, handler: (args: unknown) => unknown) => async (args: unknown) => {
     try {
@@ -97,7 +99,7 @@ export function WebMCPTools({ controller, onActivity }: Props) {
 
   const getStateTool = useWebMCP({
     name: "get_project_state",
-    description: "Read DOGAGA's current agent-safe editor state, including the Project Brief / destination, any current reviewable edit plan, visual/audio tracks, canvas, loaded Asset IDs (video, image, or audio), clips, transitions, and playhead. Local File handles and object URLs are never returned. When projectBrief.destination or projectBrief.goal is specific, compare that goal with the live state and proactively point out useful improvements. For a multi-step recommendation that benefits from human review, prefer propose_edit_plan before mutating the timeline unless the human explicitly asks you to apply edits directly.",
+    description: "Read DOGAGA's current agent-safe editor state, including the Project Brief / destination, any current humanDemonstration captured through Teach by Example, any current reviewable edit plan, visual/audio tracks, canvas, loaded Asset IDs (video, image, or audio), clips, transitions, and playhead. Local File handles and object URLs are never returned. If humanDemonstration.status is ready, treat its semantic changes as a user-provided editing example: when the human asks to do the same or apply a similar treatment, infer analogous target clips from the live state and use propose_edit_plan for multi-step application so the human can review it. When projectBrief.destination or projectBrief.goal is specific, compare that goal with the live state and proactively point out useful improvements. Do not automatically replay a human demonstration without review.",
     inputSchema: emptySchema,
     execute: execute("get_project_state", () => getProjectState(controller)),
   });
@@ -237,7 +239,7 @@ export function WebMCPTools({ controller, onActivity }: Props) {
 
   const proposeEditPlanTool = useWebMCP({
     name: "propose_edit_plan",
-    description: "Submit a validated, non-mutating multi-step editing proposal for the human to review inside DOGAGA. Use this after get_project_state when the Project Brief or live timeline suggests useful improvements, especially for destination-aware recommendations such as Spotify Canvas or vertical short-form output. The proposal does not change the timeline until the human clicks Apply in DOGAGA.",
+    description: "Submit a validated, non-mutating multi-step editing proposal for the human to review inside DOGAGA. Use this after get_project_state when the Project Brief, a ready humanDemonstration, or the live timeline suggests useful improvements. A human demonstration is an example to generalize, not an instruction to blindly replay IDs: choose analogous current targets and explain the mapping in the reason. The proposal does not change the timeline until the human clicks Apply in DOGAGA.",
     inputSchema: proposeEditPlanSchema,
     execute: execute("propose_edit_plan", (args) => proposeEditPlan(controller, args)),
   });
@@ -269,6 +271,7 @@ export function WebMCPTools({ controller, onActivity }: Props) {
   const registered = tools.filter((tool) => tool.registered).length;
   const error = tools.find((tool) => tool.error)?.error;
   const plan = collaboration.editPlan;
+  const demonstration = collaboration.humanDemonstration;
 
   const applyPlan = () => {
     if (!plan) return;
@@ -289,6 +292,41 @@ export function WebMCPTools({ controller, onActivity }: Props) {
       setPlanError(caught instanceof Error ? caught.message : String(caught));
     }
   };
+
+  const startTeaching = () => {
+    try {
+      setTeachingError(null);
+      controller.startHumanDemonstration();
+    } catch (caught) {
+      setTeachingError(caught instanceof Error ? caught.message : String(caught));
+    }
+  };
+
+  const stopTeaching = () => {
+    try {
+      setTeachingError(null);
+      controller.finishHumanDemonstration();
+    } catch (caught) {
+      setTeachingError(caught instanceof Error ? caught.message : String(caught));
+    }
+  };
+
+  const dismissDemonstration = () => {
+    try {
+      setTeachingError(null);
+      controller.dismissHumanDemonstration();
+    } catch (caught) {
+      setTeachingError(caught instanceof Error ? caught.message : String(caught));
+    }
+  };
+
+  const demonstrationMessage = demonstration?.status === "recording"
+    ? "Teaching… make one example edit in the normal UI, then stop."
+    : demonstration?.status === "ready"
+      ? `Example recorded · ${demonstration.changes.length} semantic change${demonstration.changes.length === 1 ? "" : "s"}`
+      : demonstration?.status === "empty"
+        ? "No supported semantic changes were found."
+        : "Demonstrate one edit; DOGAGA will expose the meaning, not mouse movements.";
 
   return (
     <>
@@ -329,6 +367,36 @@ export function WebMCPTools({ controller, onActivity }: Props) {
             </select>
           </label>
         </div>
+
+        <div className={`teach-by-example ${demonstration?.status ?? "idle"}`} aria-label="Teach by Example">
+          <div className="teach-by-example-heading">
+            <strong>Teach by Example</strong>
+            <span>{demonstrationMessage}</span>
+          </div>
+          <div className="teach-by-example-actions">
+            {demonstration?.status === "recording" ? (
+              <button className="stop-teaching" type="button" onClick={stopTeaching}>Stop teaching</button>
+            ) : (
+              <button type="button" onClick={startTeaching}>
+                {demonstration ? "Teach another" : "Teach agent"}
+              </button>
+            )}
+            {demonstration && demonstration.status !== "recording" && (
+              <button type="button" onClick={dismissDemonstration}>Dismiss</button>
+            )}
+          </div>
+          {demonstration?.status === "ready" && (
+            <ol className="human-demonstration-changes">
+              {demonstration.changes.map((change, index) => (
+                <li key={`${demonstration.id}-${index}`}>
+                  {describeHumanDemonstrationChange(controller.getState(), change)}
+                </li>
+              ))}
+            </ol>
+          )}
+          {teachingError && <small className="teach-error" role="alert">{teachingError}</small>}
+        </div>
+
         {error && <small role="alert">Registration error: {error.message}</small>}
       </section>
 
