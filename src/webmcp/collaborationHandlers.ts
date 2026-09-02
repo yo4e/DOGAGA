@@ -4,6 +4,7 @@ import {
   isSupportedPlaybackRate,
   type EditPlanOperation,
 } from "../editor/collaboration";
+import { IMAGE_MAX_DURATION_US, IMAGE_MIN_DURATION_US } from "../editor/model";
 
 function makeId(prefix: string): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -125,6 +126,17 @@ function parseOperation(value: unknown): EditPlanOperation {
         type,
         clipId: requiredString(input, "clipId"),
         playbackRate,
+      };
+    }
+    case "set_still_duration": {
+      const durationUs = requiredInteger(input, "durationUs");
+      if (durationUs < IMAGE_MIN_DURATION_US || durationUs > IMAGE_MAX_DURATION_US) {
+        throw new Error("Unsupported still duration");
+      }
+      return {
+        type,
+        clipId: requiredString(input, "clipId"),
+        durationUs,
       };
     }
     case "set_clip_fade": {
