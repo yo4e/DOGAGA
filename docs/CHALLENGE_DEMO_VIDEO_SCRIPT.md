@@ -118,6 +118,8 @@ Show the app-owned **Agent suggestion** card.
 
 Click **Apply**. Show the new still clips appearing in the timeline and the Preview updating.
 
+If the suggestion card covers part of the timeline at the current window size, click **Dismiss** after Apply before showing the result.
+
 If the visual result is clearer with track opacity or a transparent PNG overlay, briefly play/seek the Preview.
 
 **Narration**
@@ -155,6 +157,22 @@ Show:
 - `github.com/yo4e/DOGAGA`
 
 No extra narration is required.
+
+## Suggested YouTube metadata
+
+**Title**
+
+> DOGAGA — Teach a WebMCP Video Editor by Example
+
+**Description**
+
+> DOGAGA is a local-first browser video editor where a human and a WebMCP agent operate on the same live timeline. This demo shows the human teaching one semantic editing treatment, the agent generalizing it through a reviewable Edit Plan, and the human approving the result before Preview and browser-native Export.
+>
+> Live app: https://dogaga.pages.dev
+>
+> Source: https://github.com/yo4e/DOGAGA
+>
+> Built for the WebMCP Challenge 2026.
 
 ## Exact recording prompts
 

@@ -97,6 +97,28 @@ Human Apply
   -> atomic revalidation + shared timeline update
 ```
 
+### Production validation result — 2026-09-02
+
+**PASS** on the production application from `main` application commit `6c49a92`, using:
+
+`ChatGPT Desktop → Codex chat → in-app browser → https://dogaga.pages.dev`
+
+The supported-host rehearsal confirmed:
+
+- the page exposed all **23 WebMCP tools** and displayed `Connected · core 21/21`
+- direct Site Tool calls to `get_project_state` and `propose_edit_plan` succeeded
+- three generated, non-personal PNG fixtures loaded through the human-only file picker
+- Teach by Example returned `humanDemonstration.status = "ready"` with one semantic `add_visual_clip` example: V2, 3.00 seconds, 0.50-second fade-in
+- the agent generalized that treatment to the two analogous image assets rather than replaying the demonstrated asset ID
+- `propose_edit_plan` left the timeline unchanged while the app-owned suggestion was pending
+- human **Apply** produced three sequential 3.00-second V2 clips with the demonstrated fade; **Reject** and invalid-plan paths had already left state unchanged
+- the shared Preview played the resulting 9-second timeline
+- browser-native Export produced a downloadable 0.9 MB MP4
+- returned agent-safe state contained no local file handles, object URLs, filesystem paths, media pixels, or private teaching snapshot
+- no app-relevant console warnings or errors appeared during load, teaching, proposal, Apply, Preview, Export, or download
+
+This clears the supported-host functional gate for final demo recording.
+
 ## Path B — Chrome WebMCP testing flag
 
 For Chrome-based WebMCP testing:
