@@ -42,6 +42,17 @@ export type ProjectBrief = {
 };
 
 export type EditPlanOperation =
+  | {
+      type: "add_visual_clip";
+      clipId: string;
+      assetId: string;
+      trackId: string;
+      toIndex?: number;
+      durationUs?: number;
+      playbackRate?: PlaybackRate;
+      fadeInUs?: number;
+      fadeOutUs?: number;
+    }
   | { type: "set_canvas"; preset: CanvasPresetId; fitMode?: CanvasFitMode }
   | { type: "set_track_opacity"; trackId: string; opacity: number }
   | { type: "set_track_visibility"; trackId: string; visible: boolean }
@@ -66,6 +77,18 @@ export type AgentEditPlan = {
 };
 
 export type HumanDemonstrationChange =
+  | {
+      type: "add_visual_clip";
+      clipId: string;
+      assetId: string;
+      assetKind: "video" | "image";
+      trackId: string;
+      toIndex: number;
+      durationUs?: number;
+      playbackRate: number;
+      fadeInUs: number;
+      fadeOutUs: number;
+    }
   | {
       type: "set_canvas";
       beforePreset: CanvasPresetId;
@@ -271,9 +294,29 @@ export function createHumanDemonstrationChanges(
 
   const beforeLocations = visualClipLocations(before);
   const afterLocations = visualClipLocations(after);
+  const addedClipIds = [...afterLocations.keys()]
+    .filter((clipId) => !beforeLocations.has(clipId))
+    .sort();
   const commonClipIds = [...beforeLocations.keys()]
     .filter((clipId) => afterLocations.has(clipId))
     .sort();
+
+  for (const clipId of addedClipIds) {
+    const location = afterLocations.get(clipId)!;
+    if (location.assetKind !== "video" && location.assetKind !== "image") continue;
+    changes.push({
+      type: "add_visual_clip",
+      clipId,
+      assetId: location.clip.assetId,
+      assetKind: location.assetKind,
+      trackId: location.trackId,
+      toIndex: location.index,
+      ...(location.assetKind === "image" ? { durationUs: clipDurationUs(location.clip) } : {}),
+      playbackRate: location.clip.playbackRate,
+      fadeInUs: location.clip.fadeInUs,
+      fadeOutUs: location.clip.fadeOutUs,
+    });
+  }
 
   for (const clipId of commonClipIds) {
     const beforeLocation = beforeLocations.get(clipId)!;
@@ -362,6 +405,30 @@ export function operationToEditorCommand(
   operation: EditPlanOperation,
 ): EditorCommand {
   switch (operation.type) {
+    case "add_visual_clip": {
+      const asset = state.assets.find((candidate) => candidate.id === operation.assetId);
+      if (!asset) throw new Error("The requested asset was not found.");
+      if (asset.kind !== "video" && asset.kind !== "image") {
+        throw new Error("The selected asset is not a visual asset.");
+      }
+      const sourceOutUs = asset.kind === "image"
+        ? operation.durationUs ?? asset.durationUs
+        : asset.durationUs;
+      return {
+        type: "addClip",
+        trackId: operation.trackId,
+        ...(operation.toIndex === undefined ? {} : { atIndex: operation.toIndex }),
+        clip: {
+          id: operation.clipId,
+          assetId: operation.assetId,
+          sourceInUs: 0,
+          sourceOutUs,
+          playbackRate: asset.kind === "image" ? 1 : operation.playbackRate ?? 1,
+          fadeInUs: operation.fadeInUs ?? 0,
+          fadeOutUs: operation.fadeOutUs ?? 0,
+        },
+      };
+    }
     case "set_canvas":
       return {
         type: "setCanvas",
@@ -415,17 +482,28 @@ function trackName(state: EditorState, trackId: string): string {
   return state.tracks.find((track) => track.id === trackId)?.name ?? trackId;
 }
 
+function assetName(state: EditorState, assetId: string): string {
+  return state.assets.find((asset) => asset.id === assetId)?.name ?? assetId;
+}
+
 function clipName(state: EditorState, clipId: string): string {
   for (const track of state.tracks) {
     const clip = track.clips.find((candidate) => candidate.id === clipId);
     if (!clip) continue;
-    return state.assets.find((asset) => asset.id === clip.assetId)?.name ?? clipId;
+    return assetName(state, clip.assetId);
   }
   return clipId;
 }
 
 export function describeEditPlanOperation(state: EditorState, operation: EditPlanOperation): string {
   switch (operation.type) {
+    case "add_visual_clip": {
+      const timing = operation.durationUs === undefined ? "" : ` · ${(operation.durationUs / 1_000_000).toFixed(2)}s still`;
+      const fades = operation.fadeInUs || operation.fadeOutUs
+        ? ` · fades ${((operation.fadeInUs ?? 0) / 1_000_000).toFixed(2)}s/${((operation.fadeOutUs ?? 0) / 1_000_000).toFixed(2)}s`
+        : "";
+      return `Add ${assetName(state, operation.assetId)} to ${trackName(state, operation.trackId)}${timing}${fades}`;
+    }
     case "set_canvas":
       return `Set canvas to ${CANVAS_PRESETS[operation.preset].label}${operation.fitMode ? ` · ${operation.fitMode}` : ""}`;
     case "set_track_opacity":
@@ -451,6 +529,14 @@ export function describeEditPlanOperation(state: EditorState, operation: EditPla
 
 export function describeHumanDemonstrationChange(state: EditorState, change: HumanDemonstrationChange): string {
   switch (change.type) {
+    case "add_visual_clip": {
+      const timing = change.durationUs === undefined ? "" : ` · ${(change.durationUs / 1_000_000).toFixed(2)}s still`;
+      const speed = change.assetKind === "video" && change.playbackRate !== 1 ? ` · ${change.playbackRate}×` : "";
+      const fades = change.fadeInUs || change.fadeOutUs
+        ? ` · fades ${(change.fadeInUs / 1_000_000).toFixed(2)}s/${(change.fadeOutUs / 1_000_000).toFixed(2)}s`
+        : "";
+      return `Added ${assetName(state, change.assetId)} to ${trackName(state, change.trackId)} at position ${change.toIndex + 1}${timing}${speed}${fades}`;
+    }
     case "set_canvas":
       return `Canvas: ${CANVAS_PRESETS[change.beforePreset].label} · ${change.beforeFitMode} → ${CANVAS_PRESETS[change.preset].label} · ${change.fitMode}`;
     case "set_track_opacity":
