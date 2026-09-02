@@ -1,135 +1,150 @@
 # WebMCP Challenge — Demo Video Script
 
-Target: **2:40–2:55 total**
+Updated: 2026-09-02
 
-Requirement: public YouTube, under 3 minutes, with audio. Use only media you own or are authorized to use. Do not add copyrighted background music just for the submission video.
+Target: **2:35–2:50 total**
 
-This script uses the real production app at https://dogaga.pages.dev. Do not create a challenge-only flow.
+Requirement: public YouTube, under 3 minutes, with clear audio. Use only media you own or are authorized to use. Do not add copyrighted background music or third-party trademarks just for the submission.
+
+This script uses the real production app at https://dogaga.pages.dev. Do not create a challenge-only demo path.
+
+## Core story
+
+> **Human teaches → DOGAGA captures semantic meaning → Agent generalizes → Human approves**
+
+The video should make this collaboration loop obvious. Do not try to show all 23 tools.
 
 ## Before recording
 
 Prepare:
 
-- 2–3 short video files you own
-- 1 short audio file you own, optional but recommended
-- ChatGPT in-app browser with Site Tools / WebMCP available
+- 3 still images you own or are authorized to use; visually distinct images make generalization easy to see
+- at least one transparent PNG if available, so layered compositing is obvious
+- optionally one very short video/audio file if you want a richer Preview, but still images are enough for the core story
+- ChatGPT in-app browser or Chrome with WebMCP enabled
 - DOGAGA open at `https://dogaga.pages.dev`
-- browser zoom / window size set so timeline, preview, and agent actions remain readable
+- browser zoom/window size that keeps the Media rail, Preview, Timeline, and agent/tool activity readable
 - notifications hidden
 - no personal filenames, account information, unrelated tabs, or private media visible
 
-Keep the project simple enough that the visual result is obvious after each agent action.
+Use short assets so Export finishes quickly.
+
+## Rehearsal state
+
+Before the final take, rehearse once so the prompt maps cleanly to the loaded assets.
+
+Suggested setup:
+
+1. Load 3 still images.
+2. Create V2 if needed.
+3. Keep the timeline otherwise simple.
+4. Use a clear demonstrated treatment: **add first still to V2 → 3.00 s duration → 0.50 s fade**.
+5. Confirm the other two image assets remain loaded but not yet treated.
+
+The final take should begin from a clean/reloaded state, not from the completed rehearsal project.
 
 ## Recording plan
 
-### 0:00–0:15 — What DOGAGA is
+### 0:00–0:15 — Pitch
 
 **Screen**
 
-Open DOGAGA. Briefly show the editor and empty timeline.
+Open DOGAGA and briefly show the editor.
 
 **Narration**
 
-> DOGAGA is a local-first browser video editor where a person and an agent edit the same live timeline. Instead of giving the agent a separate editing backend, the page exposes its real editor actions through WebMCP.
+> DOGAGA is a local-first browser video editor where a person and an agent work on the same live timeline through WebMCP. The key idea is simple: I can teach an editing treatment by doing it once, the agent can generalize it, and I still approve the result.
 
 ### 0:15–0:30 — Human loads local media
 
 **Screen**
 
-Use the normal file pickers to load your video clips and optional audio. Add at least one video to V1.
+Load the 3 still images with the normal Media controls. Create/select V2 if necessary.
 
 **Narration**
 
-> I start as a normal user by choosing local video and audio. The source files stay in my browser. DOGAGA does not expose local file handles or object URLs to the agent.
+> I start normally by choosing local media. These source files stay in my browser. DOGAGA exposes safe asset metadata to the agent, but not file handles, local paths, object URLs, or media pixels.
 
-### 0:30–0:45 — Agent reads the same project
+### 0:30–0:58 — Human teaches by example
+
+**Screen**
+
+1. Click **Teach agent**.
+2. Add one still image to V2.
+3. Set its duration to about **3.00 s**.
+4. Set a **0.50 s fade**.
+5. Click **Stop teaching**.
+6. Open **WebMCP & developer details** and briefly show the **Human example** column.
+
+Expected human-readable example should make the intent obvious, such as adding the image to V2 with its demonstrated duration/fade.
+
+**Narration**
+
+> I click Teach agent and edit normally. DOGAGA does not record mouse coordinates or slider events. It compares the editor before and after and captures supported semantic changes—here, adding a still to V2 with a specific duration and fade.
+
+### 0:58–1:18 — Agent reads semantic state
 
 **Screen / agent request**
 
 Ask:
 
-> Read the current DOGAGA project state and summarize the loaded assets and timeline.
+> Read the current DOGAGA project state. Briefly tell me what human example I just demonstrated and what other analogous still-image assets are available. Do not edit anything yet.
 
-The agent should use `get_project_state`.
-
-**Narration**
-
-> The agent reads a structured, agent-safe version of the same project state that powers the UI.
-
-### 0:45–1:30 — Agent performs real multi-track edits
-
-**Screen / agent request**
-
-Ask something close to:
-
-> Add a second video track. Add another loaded clip, move it to V2, set V2 opacity to 55 percent, split the main clip near the playhead, make one clip 1.5x speed, add a short fade, and add a cross dissolve where valid. Keep the current canvas.
-
-Use a request that fits the actual loaded asset IDs/state; the agent may choose the exact valid clip IDs and transition boundary.
-
-Aim to visibly exercise several of:
-
-- `add_track`
-- `add_clip`
-- `move_clip_to_track`
-- `set_track_opacity`
-- `split_clip`
-- `set_clip_speed`
-- `set_clip_fade`
-- `add_transition`
+The agent should call `get_project_state` and recognize `humanDemonstration.status = ready`.
 
 **Narration**
 
-> These are not DOM-click macros. WebMCP exposes semantic editing tools. Each tool goes through the same EditorController and validation used by the human interface, so the timeline and real preview update immediately.
+> Through WebMCP, the agent reads the same live project plus the semantic human demonstration. It can understand the treatment without seeing my local files or replaying UI events.
 
-### 1:30–1:50 — Human corrects the agent
-
-**Screen**
-
-Preview the result. Manually change one visible setting, for example:
-
-- adjust V2 opacity with the track slider, or
-- change a clip speed/fade from the right-click menu, or
-- move the playhead and split with Cmd or Ctrl K.
-
-**Narration**
-
-> I can take over at any moment. Here I make a manual correction in the same editor. There is no separate agent copy of the timeline to synchronize.
-
-### 1:50–2:10 — Agent re-reads human changes
+### 1:18–1:48 — Agent generalizes with a reviewable plan
 
 **Screen / agent request**
 
 Ask:
 
-> Read the project again. Tell me what changed, then make one small follow-up edit without undoing my manual change.
+> Do the same to the other still images. Generalize the example to the analogous loaded image assets, but use DOGAGA's reviewable edit plan so I can approve it before anything changes.
 
-The agent should call `get_project_state` again and then one mutation tool.
+The agent should call `propose_edit_plan` and create `add_visual_clip` operations for the other images with the demonstrated treatment.
+
+Show the app-owned **Agent suggestion** card.
 
 **Narration**
 
-> Now the agent reads the project again and sees my latest manual state before continuing. That human-to-agent-to-human-to-agent loop is the core WebMCP experience in DOGAGA.
+> Now I ask the agent to do the same to the other stills. It maps the example to analogous assets and submits a structured Edit Plan. The proposal is validated, but the timeline has not changed yet.
 
-### 2:10–2:30 — Export the real result
+### 1:48–2:05 — Human approves
 
 **Screen**
 
-Click **Export video**. Show progress briefly, then show the download result. If recording time is tight, use short source clips so export finishes quickly.
+Click **Apply**. Show the new still clips appearing in the timeline and the Preview updating.
+
+If the visual result is clearer with track opacity or a transparent PNG overlay, briefly play/seek the Preview.
 
 **Narration**
 
-> This is a real editor, not a fixed demo. The same multi-track state is composited in the browser and exported as a downloadable video using Canvas, Web Audio, and MediaRecorder.
+> DOGAGA does not let the agent approve its own generalization. I choose Apply, the whole plan is revalidated and committed atomically, and the same live timeline and Preview update immediately.
 
-### 2:30–2:50 — Architecture and privacy close
+### 2:05–2:25 — Prove it is the real editor
 
 **Screen**
 
-Briefly show the Agent-safe state panel or a simple repository architecture view. End on the live app or repository.
+Preview briefly, then click **Export video**. Show export progress and the download becoming available. Keep the project short enough that this finishes quickly.
 
 **Narration**
 
-> DOGAGA exposes twenty WebMCP tools directly from the open page. Human UI and agent tools share one command executor, while local media stays runtime-only in the browser. It is a compact production editor built around a simple idea: the web page itself can be the collaboration surface for people and agents.
+> This is the real editor state, not a fixed demo. DOGAGA composites the project in the browser and exports a downloadable video with Canvas, Web Audio, and MediaRecorder.
 
-### 2:50–2:55 — End card
+### 2:25–2:43 — Architecture / privacy close
+
+**Screen**
+
+Briefly show developer details, README architecture diagram, or the live app with the WebMCP status visible.
+
+**Narration**
+
+> DOGAGA exposes 23 WebMCP tools directly from the open page. Human editing, agent tools, Preview, and Export share one EditorController, while local media stays runtime-only. WebMCP turns the page itself into the collaboration surface.
+
+### 2:43–2:50 — End card
 
 **Screen**
 
@@ -141,42 +156,78 @@ Show:
 
 No extra narration is required.
 
-## Recommended agent prompts for recording
+## Exact recording prompts
 
-Keep prompts natural; do not narrate raw tool JSON.
+Keep the prompts natural. Do not narrate raw JSON.
 
-### State read
+### Read the demonstration
 
-> Read the current DOGAGA project state. Briefly summarize the loaded assets, tracks, clips, and canvas before editing anything.
+> Read the current DOGAGA project state. Briefly tell me what human example I just demonstrated and what other analogous still-image assets are available. Do not edit anything yet.
 
-### Main editing request
+### Generalize with human review
 
-> Please turn this into a simple two-layer edit. Add V2, put a suitable loaded video clip on it, set V2 opacity to about 55%, split or trim the V1 material where useful, change one clip to 1.5x speed, add a short fade, and add a cross dissolve only where DOGAGA says it is valid. Then read the state again and summarize what you changed.
+> Do the same to the other still images. Generalize the example to the analogous loaded image assets, but use DOGAGA's reviewable edit plan so I can approve it before anything changes.
 
-### After human correction
+### Optional post-Apply confirmation
 
-> Read the project again. Preserve the manual change I just made, then make one small follow-up improvement using the current state.
+If time allows, after Apply ask:
+
+> Read the DOGAGA state again and confirm that the approved generalized edits are now part of the live timeline.
+
+Do not include this if it pushes the video near 3:00.
+
+## Expected WebMCP sequence
+
+The important tool sequence is:
+
+```text
+get_project_state
+  -> reads humanDemonstration
+  -> agent infers analogous image assets
+propose_edit_plan
+  -> DOGAGA shows Agent suggestion
+Human clicks Apply
+  -> atomic revalidation + commit
+```
+
+The video does not need to exercise all 23 tools. The goal is to show a distinctive, real WebMCP collaboration loop clearly.
+
+## What the final supported-host rehearsal must confirm
+
+Before recording the final take, verify on production/main:
+
+- `get_project_state` returns `humanDemonstration.status = "ready"`
+- the demonstration contains the expected semantic change(s)
+- the agent identifies the other image assets rather than replaying the original asset ID
+- the agent uses `propose_edit_plan` for the generalized multi-step edit
+- the timeline does not change before human Apply
+- the app-owned Agent suggestion is readable
+- Apply changes the same live timeline/Preview
+- Reject would leave the timeline untouched (this does not need to be shown in the video)
+- local File handles / object URLs / paths are absent from agent-visible state
 
 ## If a tool call fails during recording
 
-Do not hide a genuine validation failure if it is quick to understand. A useful recovery can demonstrate that DOGAGA has semantic constraints.
+Do not spend the submission video debugging.
 
-For example:
+If the failure is a simple semantic validation message, one short recovery is acceptable. Otherwise restart the take using the rehearsed asset setup.
 
-> That dissolve is not valid because the clips are not adjacent on the same video track. Find a valid adjacent boundary and try again.
-
-However, avoid spending the video debugging. Rehearse the asset/timeline setup once before the final recording.
+The safest final demo is deliberately narrow: one human example, one state read, one generalized review plan, one human Apply, one short Export.
 
 ## Final video checks
 
-- [ ] Total duration is under 3:00; target under 2:55
+- [ ] Total duration is under 3:00; target 2:35–2:50
 - [ ] Audio is clearly audible
-- [ ] English narration or a complete English translation is present
+- [ ] English narration is present
 - [ ] DOGAGA visibly functions, not just slides/screenshots
-- [ ] WebMCP agent action is clearly visible
-- [ ] Human manual edit is clearly visible
-- [ ] Agent re-read after human edit is shown
-- [ ] Export/download is shown
+- [ ] Human **Teach agent → Stop teaching** is visible
+- [ ] **Human example** semantic result is visible
+- [ ] WebMCP agent calls/uses `get_project_state`
+- [ ] Agent generalization produces a reviewable Edit Plan
+- [ ] Timeline remains unchanged before Apply
+- [ ] Human **Apply** is visible
+- [ ] Shared timeline/Preview changes after Apply
+- [ ] Real Export/download is shown
 - [ ] No unauthorized music, footage, trademarks, or private data
 - [ ] YouTube visibility is Public
 - [ ] Final YouTube URL is copied into `docs/DEVPOST_SUBMISSION_DRAFT.md` and Devpost
