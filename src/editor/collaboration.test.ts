@@ -171,6 +171,50 @@ describe("agent collaboration", () => {
     });
   });
 
+  it("captures an added still with its final duration and fades as one semantic example", () => {
+    const controller = new EditorController();
+    controller.registerAsset({
+      id: "image-1",
+      kind: "image",
+      name: "cover.png",
+      durationUs: IMAGE_DEFAULT_DURATION_US,
+      width: 1200,
+      height: 1200,
+    });
+    controller.execute({ type: "addTrack", track: { id: "video-2", kind: "video", name: "V2" } });
+
+    controller.startHumanDemonstration();
+    controller.execute({
+      type: "addClip",
+      trackId: "video-2",
+      clip: {
+        id: "still-added",
+        assetId: "image-1",
+        sourceInUs: 0,
+        sourceOutUs: IMAGE_DEFAULT_DURATION_US,
+      },
+    });
+    controller.execute({ type: "setClipDuration", clipId: "still-added", durationUs: 3 * S });
+    controller.execute({ type: "setClipFade", clipId: "still-added", fadeInUs: 500_000, fadeOutUs: 500_000 });
+    const demonstration = controller.finishHumanDemonstration();
+
+    expect(demonstration).toMatchObject({
+      status: "ready",
+      changes: [{
+        type: "add_visual_clip",
+        clipId: "still-added",
+        assetId: "image-1",
+        assetKind: "image",
+        trackId: "video-2",
+        toIndex: 0,
+        durationUs: 3 * S,
+        playbackRate: 1,
+        fadeInUs: 500_000,
+        fadeOutUs: 500_000,
+      }],
+    });
+  });
+
   it("returns an explicit empty example when no supported semantic change was made", () => {
     const controller = controllerWithVideo();
     controller.startHumanDemonstration();
