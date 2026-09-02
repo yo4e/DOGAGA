@@ -3,9 +3,11 @@
 }
 
 /* The compact header only keeps status and Export. Canvas controls remain in the
-   App DOM for compatibility, but the visible controls live with Preview below. */
-.app-bar-canvas {
-  display: none;
+   App DOM for compatibility, but the visible controls live with Preview below.
+   Keep this selector more specific than the legacy App stylesheet so the hidden
+   header controls cannot reappear because of CSS import order. */
+.app-bar .app-bar-canvas {
+  display: none !important;
 }
 
 .preview-project-settings {
