@@ -1,8 +1,8 @@
-# WebMCP Challenge — Devpost Submission Draft
+# WebMCP Challenge — Final Devpost Submission Copy
 
-Updated: 2026-09-02
+Updated: 2026-09-03
 
-Working English submission copy for the final Challenge build. Replace the YouTube placeholder and trim to the actual Devpost field limits before submission.
+Final English source copy for the submitted Challenge build. The public Devpost entry was adapted to the actual form fields and submitted before the deadline.
 
 ## Project name
 
@@ -16,8 +16,9 @@ Teach a browser video editor by example, let the agent generalize, then approve 
 
 - Live app: https://dogaga.pages.dev
 - Source: https://github.com/yo4e/DOGAGA
+- Devpost: https://devpost.com/software/dogaga
 - License: MIT
-- Demo video: **TODO — public YouTube URL, under 3 minutes, with audio**
+- Demo video: https://youtu.be/GKJtwk2TF8k (2:26, public, with English audio)
 
 ## Short description
 
@@ -289,8 +290,10 @@ See `docs/CHALLENGE_DEMO_VIDEO_SCRIPT.md` for the timed script.
 - [x] Manual production interaction QA
 - [x] Still-image / transparent-PNG / mixed Export smoke
 - [x] Teach by Example human capture smoke
-- [ ] Replace demo-video placeholder with public YouTube URL
-- [ ] Keep video under 3 minutes with clear audio
-- [ ] Copy/trim this draft to the actual Devpost fields
-- [ ] Save and submit before 2026-09-03 13:00 PDT / 2026-09-04 05:00 JST
-- [ ] After submission/deadline, do not modify the submitted Devpost entry, repo, or live site during judging
+- [x] Record the final public YouTube demo URL
+- [x] Keep video under 3 minutes with clear audio
+- [x] Copy/trim this source copy to the actual Devpost fields
+- [x] Save and submit before 2026-09-03 13:00 PDT / 2026-09-04 05:00 JST
+- [x] Add the final product screenshot to README, YouTube, and the Devpost image gallery
+
+After the submission period ends, keep the Devpost entry, submitted `main` build, live app, and public video stable and accessible throughout judging.
