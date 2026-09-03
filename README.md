@@ -12,6 +12,8 @@ The WebMCP Challenge 2026 accelerated development, but DOGAGA is not a challenge
 
 - Live app: https://dogaga.pages.dev
 - Repository: https://github.com/yo4e/DOGAGA
+- Devpost: https://devpost.com/software/dogaga
+- Demo video: https://youtu.be/GKJtwk2TF8k
 - License: MIT
 
 The public build is deployed on Cloudflare Pages from `main`.

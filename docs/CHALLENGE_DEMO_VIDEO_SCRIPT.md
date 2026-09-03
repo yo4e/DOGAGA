@@ -234,18 +234,18 @@ The safest final demo is deliberately narrow: one human example, one state read,
 
 ## Final video checks
 
-- [ ] Total duration is under 3:00; target 2:35–2:50
-- [ ] Audio is clearly audible
-- [ ] English narration is present
-- [ ] DOGAGA visibly functions, not just slides/screenshots
-- [ ] Human **Teach agent → Stop teaching** is visible
-- [ ] **Human example** semantic result is visible
-- [ ] WebMCP agent calls/uses `get_project_state`
-- [ ] Agent generalization produces a reviewable Edit Plan
-- [ ] Timeline remains unchanged before Apply
-- [ ] Human **Apply** is visible
-- [ ] Shared timeline/Preview changes after Apply
-- [ ] Real Export/download is shown
-- [ ] No unauthorized music, footage, trademarks, or private data
-- [ ] YouTube visibility is Public
-- [ ] Final YouTube URL is copied into `docs/DEVPOST_SUBMISSION_DRAFT.md` and Devpost
+- [x] Total duration is under 3:00 (final: 2:26)
+- [x] Audio is clearly audible
+- [x] English narration is present
+- [x] DOGAGA visibly functions, not just slides/screenshots
+- [x] Human **Teach agent → Stop teaching** is visible
+- [x] **Human example** semantic result is visible
+- [x] WebMCP agent calls/uses `get_project_state`
+- [x] Agent generalization produces a reviewable Edit Plan
+- [x] Timeline remains unchanged before Apply
+- [x] Human **Apply** is visible
+- [x] Shared timeline/Preview changes after Apply
+- [x] Real Export/download is shown
+- [x] No unauthorized music, footage, trademarks, or private data
+- [x] YouTube visibility is Public
+- [x] Final YouTube URL is copied into `docs/DEVPOST_SUBMISSION_DRAFT.md` and Devpost
