@@ -6,6 +6,8 @@ Rather than recreating a full professional NLE such as Premiere Pro, DOGAGA aims
 
 The WebMCP Challenge 2026 accelerated development, but DOGAGA is not a challenge-only demo. The public app is the evolving **compact production v0**.
 
+[![DOGAGA showing WebMCP-connected Teach by Example, an applied agent suggestion, live preview, and the shared timeline](docs/assets/dogaga-webmcp-overview.jpg)](https://dogaga.pages.dev)
+
 ## Public build
 
 - Live app: https://dogaga.pages.dev
